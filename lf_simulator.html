@@ -1,0 +1,2788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LF3 Run Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Watch the LF3 line follower program drive the 3.53 m test track, computed by an exact JavaScript port of the C++ reference simulator.">
+<style>
+/* Layout: a robotics workbench. Settings rail on the left, the track board (to scale) in the middle with the
+   transport bar under it, the robot's live "instruments" on the right, and a tabbed lab bench below the board. */
+:root {
+  --bg: #e6eaee;          /* bench */
+  --panel: #f9fbfc;       /* panels */
+  --panel-2: #eef2f5;     /* insets, table stripes */
+  --ink: #17202a;
+  --ink-2: #4a5663;
+  --ink-3: #7b8692;
+  --line: #d2d9e0;
+  --accent: #1d5bc9;      /* controls, focus */
+  --accent-ink: #ffffff;
+  --accent-soft: #dde7fa;
+  --ok: #17824a; --ok-soft: #d6efe0;
+  --bad: #c33129; --bad-soft: #f7dcd9;
+  --warn: #a8670c;
+  --surround: #c9d1d9;    /* around the white floor */
+  --shadow: 0 1px 2px rgba(20, 30, 40, .08), 0 4px 14px rgba(20, 30, 40, .06);
+  /* trail categories (drawn on the white floor, so the same in both themes) */
+  --tr-idle: #9aa3ad; --tr-straight: #2f7de1; --tr-gentle: #e09a12; --tr-sharp: #e2482b; --tr-cross: #8a4bd6; --tr-search: #cf2f8d;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Avenir Next", "Avenir", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141a; --panel: #161d25; --panel-2: #1c252f; --ink: #e3e8ed; --ink-2: #a7b1bc; --ink-3: #75808c; --line: #29333e;
+    --accent: #6f9ef2; --accent-ink: #0a1220; --accent-soft: #1c2b45; --ok: #3cbf78; --ok-soft: #15321f; --bad: #f06b61; --bad-soft: #3a1b19;
+    --warn: #e0a64a; --surround: #0a0e12; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141a; --panel: #161d25; --panel-2: #1c252f; --ink: #e3e8ed; --ink-2: #a7b1bc; --ink-3: #75808c; --line: #29333e;
+  --accent: #6f9ef2; --accent-ink: #0a1220; --accent-soft: #1c2b45; --ok: #3cbf78; --ok-soft: #15321f; --bad: #f06b61; --bad-soft: #3a1b19;
+  --warn: #e0a64a; --surround: #0a0e12; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.num, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- app frame */
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 286px minmax(0, 1fr) 300px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "top top top" "rail stage inst" "rail bench inst";
+  gap: 10px;
+  padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.app.bench-collapsed .bench-body { display: none; }
+
+.topbar { grid-area: top; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-width: 0; }
+.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.brand h1 { font: 650 19px/1.1 var(--font-display); letter-spacing: .01em; margin: 0; text-wrap: balance; }
+.brand h1 .tag { display: inline-block; font: 600 11px/1 var(--font-mono); color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 3px 5px; margin-right: 8px; vertical-align: 2px; }
+.brand .sub { color: var(--ink-3); font-size: 12px; }
+.topbar .spacer { flex: 1; }
+.theme-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--panel); }
+.theme-toggle button { border: 0; background: transparent; padding: 4px 10px; font-size: 12px; color: var(--ink-2); cursor: pointer; }
+.theme-toggle button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); min-width: 0; }
+
+/* ---------------------------------------------------------------- left rail: settings */
+.rail { grid-area: rail; overflow: auto; padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 4px; }
+.rail section { padding: 10px 0 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.rail section:last-child { border-bottom: 0; }
+.rail h2 { font: 650 11px/1.2 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rail h2 .hint { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink-3); }
+.rpm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.rpm-big { font: 600 26px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.rpm-big small { font-size: 12px; color: var(--ink-3); font-weight: 500; margin-left: 3px; }
+.vmax { text-align: right; font-size: 12px; color: var(--ink-2); }
+.vmax b { display: block; font: 600 15px/1.1 var(--font-mono); color: var(--ink); }
+input[type=range] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 12px; font-variant-numeric: tabular-nums; }
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.field-grid { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 5px 8px; align-items: center; }
+.field-grid label { font-size: 12px; color: var(--ink-2); font-family: var(--font-mono); overflow-wrap: anywhere; }
+.field-grid label small { font-family: var(--font-ui); color: var(--ink-3); display: block; font-size: 10.5px; }
+.field-grid input[type=number] { width: 100%; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel-2); font-family: var(--font-mono); font-size: 12px; text-align: right; }
+.field-grid input:disabled { opacity: .5; }
+select { width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+.switch input { width: 34px; height: 18px; accent-color: var(--accent); }
+.slider-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 8px; align-items: center; }
+.slider-row label { font-size: 12px; color: var(--ink-2); }
+.slider-row output { font: 600 12px var(--font-mono); text-align: right; min-width: 64px; }
+.slider-row input { grid-column: 1 / -1; }
+.slider-row .note { grid-column: 1 / -1; font-size: 10.5px; color: var(--ink-3); margin-top: -2px; }
+.linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; }
+.rail .foot { font-size: 11px; color: var(--ink-3); }
+
+/* ---------------------------------------------------------------- stage: board + transport */
+.stage { grid-area: stage; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.stage-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.now-showing { flex: 1; min-width: 0; font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now-showing b { color: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--line); background: var(--panel); padding: 4px 9px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.board { position: relative; flex: 1; min-height: 260px; background: var(--surround); overflow: hidden; touch-action: none; }
+.board canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+.board canvas.dragging { cursor: grabbing; }
+.legend { position: absolute; right: 8px; top: 8px; background: rgba(255, 255, 255, .93); color: #1d2630; border: 1px solid #d8dee4; border-radius: 6px; padding: 6px 8px; font-size: 11px; }
+.legend-items { display: grid; gap: 2px; }
+.legend summary { cursor: pointer; list-style-position: inside; }
+.legend[open] summary { margin-bottom: 2px; }
+.legend .t { font-weight: 650; display: list-item; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #5a6570; margin-bottom: 1px; }
+.legend i { display: inline-block; width: 16px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.legend .ev { display: inline-block; width: 16px; text-align: center; margin-right: 6px; font-style: normal; font-weight: 700; }
+.busy { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(240, 244, 248, .55); font: 600 14px var(--font-ui); color: #1d2630; }
+.board-hint { position: absolute; left: 10px; top: 8px; font-size: 11px; color: #4b5661; background: rgba(255, 255, 255, .85); border-radius: 5px; padding: 3px 6px; pointer-events: none; }
+
+.transport { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 11px; cursor: pointer; font-weight: 550; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.small { padding: 3px 8px; font-size: 12px; font-weight: 500; }
+.scrub { flex: 1 1 220px; min-width: 160px; position: relative; padding-top: 9px; }
+.scrub input { width: 100%; display: block; margin: 0; }
+.scrub .ticks { position: absolute; left: 7px; right: 7px; top: 0; height: 8px; pointer-events: none; }
+.scrub .ticks span { position: absolute; top: 0; width: 2px; height: 7px; border-radius: 1px; transform: translateX(-1px); }
+.clock { font: 600 12px var(--font-mono); color: var(--ink-2); min-width: 108px; text-align: right; }
+
+/* ---------------------------------------------------------------- right column: instruments */
+.inst { grid-area: inst; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.inst h3 { margin: 0; font: 650 10.5px/1.2 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); }
+.clocks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.clocks div { display: grid; gap: 2px; }
+.clocks b { font: 600 22px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+.clocks span { font-size: 11px; color: var(--ink-3); }
+.state { display: flex; align-items: center; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font: 700 12.5px/1 var(--font-ui); letter-spacing: .05em; color: #fff; background: var(--tr-idle); }
+.rule { background: var(--panel-2); border-radius: 6px; padding: 7px 9px; font-size: 12px; line-height: 1.35; min-height: 50px; }
+.rule .code { font-family: var(--font-mono); font-weight: 600; }
+.sensors { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sensor { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; gap: 8px; }
+.sensor .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #8a949e; background: #fff; flex: none; }
+.sensor.black .dot { background: #f2281b; border-color: #a5170f; box-shadow: 0 0 0 3px rgba(242, 40, 27, .2); }
+.sensor .lab { font-size: 10.5px; color: var(--ink-3); display: block; }
+.sensor b { font: 700 13px var(--font-mono); }
+.motors { display: grid; gap: 6px; }
+.motor { display: grid; grid-template-columns: 44px minmax(0, 1fr) 62px; gap: 6px; align-items: center; font-size: 11.5px; }
+.motor .bar { position: relative; height: 14px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+.motor .bar::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--ink-3); }
+.motor .fill { position: absolute; top: 2px; bottom: 2px; border-radius: 2px; }
+.motor .v { font: 600 11.5px var(--font-mono); text-align: right; }
+.kv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; font-size: 12px; }
+.kv dt { color: var(--ink-2); }
+.kv dd { margin: 0; font: 600 12px var(--font-mono); text-align: right; }
+.gauge { height: 6px; background: var(--panel-2); border-radius: 3px; position: relative; overflow: hidden; }
+.gauge i { position: absolute; top: 0; bottom: 0; left: 0; background: var(--accent); border-radius: 3px; }
+.devgauge { height: 10px; background: linear-gradient(90deg, var(--bad-soft), var(--panel-2) 30%, var(--panel-2) 70%, var(--bad-soft)); border-radius: 3px; position: relative; }
+.devgauge::before { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: #111; opacity: .6; }
+.devgauge i { position: absolute; top: -2px; width: 4px; height: 14px; background: var(--accent); border-radius: 2px; transform: translateX(-2px); }
+.devscale { display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-3); font-family: var(--font-mono); }
+
+.result { border-radius: 8px; padding: 10px 12px; border: 1px solid var(--line); display: grid; gap: 6px; }
+.result.ok { background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.result.bad { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.result .head { font: 700 15px/1.1 var(--font-display); letter-spacing: .03em; }
+.result.ok .head { color: var(--ok); }
+.result.bad .head { color: var(--bad); }
+.result .big { font: 700 26px/1 var(--font-mono); }
+.result .why { font-size: 12.5px; }
+.result.pending { background: var(--panel-2); color: var(--ink-2); font-size: 12px; }
+.race-board { display: grid; gap: 4px; }
+.race-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 6px; align-items: center; font-size: 11.5px; }
+.race-row .sw { width: 12px; height: 12px; border-radius: 3px; }
+.race-row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.race-row .st { font: 600 11.5px var(--font-mono); }
+.serial { background: #0e1318; color: #b9f3c6; font: 11px/1.45 var(--font-mono); border-radius: 6px; padding: 7px 9px; max-height: 120px; overflow: auto; white-space: pre-wrap; }
+.serial .t { color: #5f7a68; }
+
+/* ---------------------------------------------------------------- bench (tabs) */
+.bench { grid-area: bench; display: flex; flex-direction: column; min-height: 0; }
+.tabs { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button[role=tab] { border: 0; background: none; padding: 9px 14px; cursor: pointer; font-weight: 550; color: var(--ink-2); border-bottom: 2px solid transparent; white-space: nowrap; }
+.tabs button[role=tab][aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs .spacer { flex: 1; }
+.tabs .collapse { border: 0; background: none; color: var(--ink-3); cursor: pointer; padding: 0 12px; }
+.bench-body { height: var(--bench-h, clamp(180px, 27vh, 340px)); overflow: auto; padding: 10px 12px; }
+.splitter { height: 8px; margin: -1px 0 -4px; cursor: row-resize; position: relative; touch-action: none; }
+.splitter::after { content: ""; position: absolute; left: 50%; top: 2px; width: 44px; height: 4px; margin-left: -22px; border-radius: 2px; background: var(--line); }
+.splitter:hover::after { background: var(--accent); }
+.bench-body > [role=tabpanel] { min-width: 0; }
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.toolbar .muted { color: var(--ink-3); font-size: 12px; }
+
+table.hist { border-collapse: collapse; width: 100%; font-size: 12px; }
+.table-wrap { overflow-x: auto; }
+table.hist th { text-align: left; font-weight: 600; color: var(--ink-3); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 4px 6px; border-bottom: 1px solid var(--line); position: sticky; top: -10px; background: var(--panel); white-space: nowrap; }
+table.hist td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.hist tbody tr { cursor: pointer; }
+table.hist tbody tr:hover { background: var(--panel-2); }
+table.hist tbody tr.current { background: var(--accent-soft); }
+table.hist td.n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.hist .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-left: 4px; }
+.tagok { color: var(--ok); font-weight: 700; }
+.tagbad { color: var(--bad); font-weight: 700; }
+.small { font-size: 11px; color: var(--ink-3); }
+
+.progress { height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; flex: 1; min-width: 120px; }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+.grid72-wrap { overflow-x: auto; }
+table.grid72 { border-collapse: separate; border-spacing: 3px; font-size: 11px; }
+table.grid72 th { font-weight: 600; color: var(--ink-2); font-size: 10.5px; padding: 2px 4px; white-space: nowrap; }
+table.grid72 th.rowh { text-align: right; font-family: var(--font-mono); font-weight: 500; }
+table.grid72 th.colh { font-family: var(--font-mono); font-weight: 500; line-height: 1.25; }
+table.grid72 td { width: 64px; height: 23px; border-radius: 4px; text-align: center; font: 600 11.5px var(--font-mono); cursor: pointer; background: var(--panel-2); color: var(--ink-3); }
+table.grid72 td.ok { background: var(--ok); color: #fff; }
+table.grid72 td.bad { background: var(--bad); color: #fff; }
+table.grid72 td:hover { outline: 2px solid var(--ink); }
+table.grid72 td.mismatch { box-shadow: inset 0 0 0 2px #ffd400; }
+.summary72 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin: 4px 0 8px; }
+.summary72 .big { font: 700 22px var(--font-mono); }
+.refnote { font-size: 12px; padding: 3px 8px; border-radius: 5px; background: var(--panel-2); }
+.refnote.match { background: var(--ok-soft); color: var(--ok); }
+.tip { position: fixed; z-index: 50; pointer-events: none; background: #11171d; color: #eef2f5; font-size: 11.5px; line-height: 1.4; border-radius: 6px; padding: 7px 9px; max-width: 280px; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); }
+
+.learn { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 22px; max-width: 1200px; }
+@media (min-width: 900px) { .learn > div:first-child { grid-column: span 2; } }
+.learn h4 { margin: 0 0 4px; font: 650 14px/1.25 var(--font-display); }
+.learn p { margin: 0 0 6px; font-size: 12.5px; color: var(--ink-2); max-width: 65ch; }
+table.rules { border-collapse: collapse; font-size: 12px; width: 100%; }
+table.rules td, table.rules th { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+table.rules th { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+.kB { font: 700 11.5px var(--font-mono); }
+.kB.black { color: #fff; background: #1b1b1b; padding: 1px 5px; border-radius: 3px; }
+.kB.white { color: #1b1b1b; background: #fff; border: 1px solid #c8ced4; padding: 0 4px; border-radius: 3px; }
+
+.codeview { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; }
+pre.code { margin: 0; font: 12px/1.5 var(--font-mono); background: var(--panel-2); border-radius: 6px; padding: 6px 0; overflow-x: auto; }
+pre.code .ln { display: block; padding: 0 10px 0 0; white-space: pre; border-left: 3px solid transparent; }
+pre.code .ln .no { display: inline-block; width: 34px; text-align: right; padding-right: 10px; color: var(--ink-3); user-select: none; }
+pre.code .ln.blk { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+pre.code .ln.hot { background: color-mix(in srgb, var(--warn) 26%, transparent); border-left-color: var(--warn); }
+pre.code .c { color: var(--ink-3); font-style: italic; }
+pre.code .k { color: var(--accent); font-weight: 600; }
+pre.code .d { color: var(--warn); }
+.codeside { font-size: 12px; display: grid; gap: 8px; align-content: start; }
+.codeside .rule { min-height: 0; }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: #11171d; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 12.5px; z-index: 60; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); max-width: calc(100% - 32px); }
+
+/* ---------------------------------------------------------------- narrow windows: stack everything, page scrolls */
+@media (max-width: 1100px) {
+  html, body { height: auto; }
+  .app { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "top" "stage" "inst" "bench" "rail"; }
+  .stage { height: auto; }
+  .board { flex: none; height: 62vh; min-height: 300px; }
+  .rail, .inst { overflow: visible; }
+  .inst { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-items: start; align-content: start; }
+  .bench-body { height: auto; max-height: none; }
+  .codeview { grid-template-columns: minmax(0, 1fr); }
+  .splitter { display: none; }
+}
+@media (max-width: 1100px) and (min-width: 700px) {
+  .app { grid-template-columns: 280px minmax(0, 1fr); grid-template-areas: "top top" "stage stage" "rail inst" "bench bench"; }
+  .inst { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  .board-hint { display: none; }
+}
+@media (max-width: 520px) {
+  .brand .sub { display: none; }
+  .clock { min-width: 0; }
+  .legend { font-size: 10px; padding: 4px 6px; }
+}
+@media (prefers-reduced-motion: reduce) { .progress i { transition: none; } }
+
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <h1><span class="tag">LF3</span>Line Follower Run Simulator</h1>
+      <span class="sub">TechRadiance 2026 &middot; Arduino UNO &middot; 2 digital IR sensors &middot; L298N &middot; 2 BO motors &middot; 3.53 m test track</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="theme-toggle" role="group" aria-label="Colour theme">
+      <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-set="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+    </div>
+  </header>
+
+  <!-- ============================================================ SETTINGS RAIL -->
+  <aside class="rail panel" id="rail" aria-label="Run settings">
+    <section>
+      <h2>Motor RPM <span class="hint">rules: 300 max</span></h2>
+      <div class="rpm-head">
+        <div class="rpm-big"><span id="rpmVal">200</span><small>RPM</small></div>
+        <div class="vmax">top wheel speed<b id="vmaxVal">0.50 m/s</b></div>
+      </div>
+      <input type="range" id="rpm" min="60" max="300" step="10" value="200" aria-label="Motor RPM">
+      <div class="chips" id="rpmChips">
+        <button type="button" class="chip" data-rpm="100">100</button>
+        <button type="button" class="chip" data-rpm="150">150</button>
+        <button type="button" class="chip" data-rpm="200">200</button>
+        <button type="button" class="chip" data-rpm="250">250</button>
+        <button type="button" class="chip" data-rpm="300">300</button>
+      </div>
+      <div class="foot">v<sub>max</sub> = (RPM / 400) &times; (wheel &oslash; / 65 mm): the motors reach about 73 % of their no-load RPM on the loaded robot.</div>
+    </section>
+
+    <section>
+      <h2>Program settings <span class="hint">LF3 constants</span></h2>
+      <select id="preset" aria-label="Preset">
+        <option value="default">Default (150 / 130 / 170 / 0 / -150)</option>
+        <option value="slower">Slower, for 300 RPM motors (125 / 110 / 145 / 0 / -125)</option>
+        <option value="faster">Faster (180 / 150 / 200 / 0 / -170)</option>
+        <option value="muchFaster">Much faster (210 / 170 / 230 / 0 / -190)</option>
+        <option value="custom">Custom</option>
+      </select>
+      <div class="field-grid" id="settingsGrid">
+        <label for="s-SPEED_STRAIGHT">SPEED_STRAIGHT<small>both wheels, line between sensors</small></label><input type="number" id="s-SPEED_STRAIGHT" min="-255" max="255" step="1">
+        <label for="s-SPEED_CROSSING">SPEED_CROSSING<small>both wheels, on a crossing</small></label><input type="number" id="s-SPEED_CROSSING" min="-255" max="255" step="1">
+        <label for="s-TURN_OUTER">TURN_OUTER<small>outer wheel in every turn</small></label><input type="number" id="s-TURN_OUTER" min="-255" max="255" step="1">
+        <label for="s-TURN_INNER_SOFT">TURN_INNER_SOFT<small>inner wheel, gentle turn</small></label><input type="number" id="s-TURN_INNER_SOFT" min="-255" max="255" step="1">
+        <label for="s-TURN_INNER_SHARP">TURN_INNER_SHARP<small>inner wheel, sharp turn</small></label><input type="number" id="s-TURN_INNER_SHARP" min="-255" max="255" step="1">
+        <label for="s-SHARP_AFTER_MS">SHARP_AFTER_MS<small>gentle turn becomes sharp after</small></label><input type="number" id="s-SHARP_AFTER_MS" min="0" max="5000" step="1">
+        <label for="s-LOST_AFTER_MS">LOST_AFTER_MS<small>line memory: search after</small></label><input type="number" id="s-LOST_AFTER_MS" min="0" max="99999" step="1">
+        <label for="s-SEARCH_GIVE_UP_MS">SEARCH_GIVE_UP_MS<small>stop if not found within</small></label><input type="number" id="s-SEARCH_GIVE_UP_MS" min="0" max="60000" step="1">
+      </div>
+      <label class="switch"><span>Line memory<span class="small" style="display:block">off sets LOST_AFTER_MS to 99999</span></span><input type="checkbox" id="memory" checked></label>
+    </section>
+
+    <section>
+      <h2>Robot build <button type="button" class="linkbtn" id="resetBuild">reset</button></h2>
+      <div class="slider-row"><label for="b-spacing">Sensor spacing</label><output id="o-spacing">3.8 cm</output><input type="range" id="b-spacing" min="3.0" max="5.0" step="0.1" value="3.8"></div>
+      <div class="slider-row"><label for="b-ahead">Sensors ahead of the axle</label><output id="o-ahead">7.0 cm</output><input type="range" id="b-ahead" min="5" max="9" step="0.5" value="7"></div>
+      <div class="slider-row"><label for="b-track">Wheel spacing</label><output id="o-track">13.0 cm</output><input type="range" id="b-track" min="12" max="15" step="0.5" value="13"></div>
+      <div class="slider-row"><label for="b-wheel">Wheel diameter</label><output id="o-wheel">65 mm</output><input type="range" id="b-wheel" min="40" max="90" step="1" value="65"></div>
+      <div class="slider-row"><label for="b-tau">Motor response time TAU</label><output id="o-tau">0.08 s</output><input type="range" id="b-tau" min="0.05" max="0.10" step="0.01" value="0.08"><span class="note">0.05 = quick &middot; 0.10 = slow</span></div>
+      <div class="slider-row"><label for="b-dead">Motor dead zone DEAD</label><output id="o-dead">60 PWM</output><input type="range" id="b-dead" min="40" max="80" step="5" value="60"><span class="note">PWM below this does not turn the wheel</span></div>
+    </section>
+
+    <section>
+      <h2>Track</h2>
+      <div class="slider-row"><label>Line (tape) width</label><span></span></div>
+      <div class="seg" id="lineW" role="group" aria-label="Line width">
+        <button type="button" data-w="2.0" aria-pressed="false">2.0 cm</button>
+        <button type="button" data-w="2.5" aria-pressed="true">2.5 cm</button>
+        <button type="button" data-w="3.0" aria-pressed="false">3.0 cm</button>
+      </div>
+      <div class="foot">3.53 m test track: wide left curve, crossing line, tight right curve, 5 cm gap, sharp 90&deg; left corner, R 12 cm curve, S-bend of R 10 cm curves.</div>
+    </section>
+  </aside>
+
+  <!-- ============================================================ STAGE -->
+  <main class="stage panel" aria-label="Track">
+    <div class="stage-head">
+      <div class="now-showing" id="nowShowing">&nbsp;</div>
+      <div class="seg" role="group" aria-label="Camera">
+        <button type="button" id="camWhole" aria-pressed="true">Whole track</button>
+        <button type="button" id="camFollow" aria-pressed="false">Follow robot</button>
+      </div>
+      <div class="seg" role="group" aria-label="Zoom">
+        <button type="button" id="zoomOut" aria-label="Zoom out">&minus;</button>
+        <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+      </div>
+    </div>
+    <div class="board" id="board">
+      <canvas id="cv" aria-label="Top-down view of the track and the robot, to scale"></canvas>
+      <div class="board-hint" id="boardHint">scroll to zoom &middot; drag to pan &middot; double-click: whole track</div>
+      <details class="legend" id="legend" open>
+        <summary class="t">Legend: trail of the sensor midpoint</summary>
+        <div class="legend-items">
+        <span><i style="background:var(--tr-straight)"></i>straight</span>
+        <span><i style="background:var(--tr-gentle)"></i>gentle turn</span>
+        <span><i style="background:var(--tr-sharp)"></i>sharp turn</span>
+        <span><i style="background:var(--tr-cross)"></i>crossing</span>
+        <span><i style="background:var(--tr-search)"></i>line-memory search</span>
+        <span><em class="ev" style="color:var(--tr-sharp)">&#9650;</em>sharp turn starts</span>
+        <span><em class="ev" style="color:var(--tr-search)">?</em>line lost &rarr; searching</span>
+        <span><em class="ev" style="color:var(--tr-cross)">#</em>crossing counted</span>
+        </div>
+      </details>
+      <div class="busy" id="busy" hidden>Simulating&hellip;</div>
+    </div>
+    <div class="transport">
+      <button type="button" class="btn primary" id="btnStart" title="Simulate a run with the settings on the left and play it">&#9654; Start run</button>
+      <button type="button" class="btn" id="btnPause" title="Space">Pause</button>
+      <button type="button" class="btn" id="btnRestart">&#8634; Restart</button>
+      <div class="seg" id="speeds" role="group" aria-label="Playback speed">
+        <button type="button" data-speed="0.1">0.1&times;</button>
+        <button type="button" data-speed="0.25">0.25&times;</button>
+        <button type="button" data-speed="0.5">0.5&times;</button>
+        <button type="button" data-speed="1" aria-pressed="true" title="real time">1&times;</button>
+        <button type="button" data-speed="2">2&times;</button>
+        <button type="button" data-speed="4">4&times;</button>
+      </div>
+      <div class="scrub"><div class="ticks" id="ticks"></div><input type="range" id="scrub" min="0" max="1000" step="1" value="0" aria-label="Timeline"></div>
+      <div class="clock" id="tClock">0.000 / 0.000 s</div>
+    </div>
+  </main>
+
+  <!-- ============================================================ INSTRUMENTS -->
+  <aside class="inst panel" aria-label="Live readouts">
+    <div class="clocks">
+      <div><span>Run clock</span><b id="rClock">0.000</b></div>
+      <div><span>Lap time</span><b id="rLap">&ndash;</b></div>
+    </div>
+    <div>
+      <h3>What the program is doing</h3>
+      <div class="state" style="margin-top:6px"><span class="pill" id="rState">WAITING FOR START</span></div>
+    </div>
+    <div class="sensors">
+      <div class="sensor" id="sL"><span class="dot"></span><span><span class="lab">LEFT sensor (A1)</span><b>white</b></span></div>
+      <div class="sensor" id="sR"><span class="dot"></span><span><span class="lab">RIGHT sensor (A3)</span><b>white</b></span></div>
+    </div>
+    <div class="rule" id="rRule">&nbsp;</div>
+    <div>
+      <h3>Motor PWM (L298N)</h3>
+      <div class="motors" style="margin-top:6px">
+        <div class="motor"><span>Left</span><div class="bar"><div class="fill" id="pwmLf"></div></div><span class="v" id="pwmL">0</span></div>
+        <div class="motor"><span>Right</span><div class="bar"><div class="fill" id="pwmRf"></div></div><span class="v" id="pwmR">0</span></div>
+      </div>
+    </div>
+    <dl class="kv">
+      <dt>Wheel speed left / right</dt><dd id="rWheels">0.00 / 0.00 m/s</dd>
+      <dt>Sensor midpoint off the line</dt><dd id="rDev">0.0 mm</dd>
+    </dl>
+    <div><div class="devgauge"><i id="devMark" style="left:50%"></i></div><div class="devscale"><span>20 mm right</span><span>centre</span><span>20 mm left</span></div></div>
+    <dl class="kv">
+      <dt>Progress</dt><dd id="rProg">0 %</dd>
+    </dl>
+    <div class="gauge"><i id="progBar" style="width:0"></i></div>
+    <dl class="kv">
+      <dt>Crossings counted</dt><dd id="rJunc">0</dd>
+      <dt>Line memory</dt><dd id="rMem">&ndash;</dd>
+    </dl>
+    <div id="resultCard" class="result pending">The result appears when the playback reaches the end of the run.</div>
+    <div id="raceBox" hidden>
+      <h3>Race</h3>
+      <div class="race-board" id="raceBoard" style="margin-top:6px"></div>
+    </div>
+    <div>
+      <h3>Serial Monitor (115200 baud)</h3>
+      <div class="serial" id="serial" style="margin-top:6px"></div>
+    </div>
+  </aside>
+
+  <!-- ============================================================ BENCH -->
+  <section class="bench panel" aria-label="Compare and learn">
+    <div class="splitter" id="splitter" title="Drag to make the track bigger or smaller" aria-hidden="true"></div>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-hist" aria-selected="true" aria-controls="p-hist">Run history</button>
+      <button type="button" role="tab" id="tab-72" aria-selected="false" aria-controls="p-72">Test all 72 combinations</button>
+      <button type="button" role="tab" id="tab-learn" aria-selected="false" aria-controls="p-learn">How the program works</button>
+      <button type="button" role="tab" id="tab-code" aria-selected="false" aria-controls="p-code">Show code</button>
+      <span class="spacer"></span>
+      <button type="button" class="collapse" id="benchToggle" aria-expanded="true" title="Hide / show this panel">&#9662; hide</button>
+    </div>
+    <div class="bench-body">
+      <div role="tabpanel" id="p-hist" aria-labelledby="tab-hist">
+        <div class="toolbar">
+          <button type="button" class="btn small" id="btnRace" disabled>Race ticked runs</button>
+          <button type="button" class="btn small" id="btnUntick">Untick all</button>
+          <button type="button" class="btn small" id="btnClear">Clear history</button>
+          <span class="muted">Click a row to replay it. Tick rows to overlay their trails; tick 2&ndash;4 and press Race to replay them together.</span>
+        </div>
+        <div class="table-wrap">
+          <table class="hist">
+            <thead><tr><th>Tick</th><th>#</th><th>RPM</th><th>Program</th><th>Build</th><th>Track</th><th>Result</th><th>Lap</th><th>Max off-line</th><th>Mean</th></tr></thead>
+            <tbody id="histBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div role="tabpanel" id="p-72" aria-labelledby="tab-72" hidden>
+        <div class="toolbar">
+          <button type="button" class="btn small primary" id="btn72">Test all 72 combinations</button>
+          <div class="progress" id="prog72wrap" hidden><i id="prog72"></i></div>
+          <span class="muted" id="desc72"></span>
+        </div>
+        <div id="res72"></div>
+      </div>
+
+      <div role="tabpanel" id="p-learn" aria-labelledby="tab-learn" hidden>
+        <div class="learn">
+          <div>
+            <h4>The four sensor rules</h4>
+            <p>The two IR sensors sit just <b>outside</b> the two edges of the black tape. When the robot is centred, both see white. Each sensor only says &ldquo;black&rdquo; or &ldquo;white&rdquo;, so there are only four possible readings:</p>
+            <table class="rules">
+              <tr><th>Left</th><th>Right</th><th>Meaning</th><th>What LF3 does</th></tr>
+              <tr><td><span class="kB white">white</span></td><td><span class="kB white">white</span></td><td>line between the sensors</td><td>straight (SPEED_STRAIGHT)</td></tr>
+              <tr><td><span class="kB black">BLACK</span></td><td><span class="kB white">white</span></td><td>robot drifted right</td><td>turn left</td></tr>
+              <tr><td><span class="kB white">white</span></td><td><span class="kB black">BLACK</span></td><td>robot drifted left</td><td>turn right</td></tr>
+              <tr><td><span class="kB black">BLACK</span></td><td><span class="kB black">BLACK</span></td><td>crossing line</td><td>straight on, a bit slower</td></tr>
+            </table>
+          </div>
+          <div>
+            <h4>Gentle first, then sharp</h4>
+            <p>A turn starts gentle: the outer wheel drives at TURN_OUTER and the inner wheel stops (TURN_INNER_SOFT = 0), so the robot swings round its inner wheel.</p>
+            <p>If the same sensor is still on black after SHARP_AFTER_MS (30 ms), the bend must be sharp. Now the inner wheel runs backwards (TURN_INNER_SHARP) and the robot spins almost on the spot. Watch the trail turn from amber to red-orange in tight curves.</p>
+          </div>
+          <div>
+            <h4>Line memory</h4>
+            <p>At the 90&deg; corner the robot can overshoot so far that both sensors end up on white, which normally means &ldquo;go straight&rdquo;. So after a sharp turn LF3 remembers which way it was turning. If it then sees no line for LOST_AFTER_MS (250 ms), it spins back that way until one sensor finds the tape again (magenta trail, &ldquo;?&rdquo; marker). After SEARCH_GIVE_UP_MS (2 s) without the line it stops.</p>
+            <p>Both sensors black <i>during</i> a sharp turn is treated as being on top of the corner, not as a crossing.</p>
+          </div>
+          <div>
+            <h4>What the simulator models</h4>
+            <p>Each wheel follows its target speed with a delay (TAU), PWM below DEAD does not move it, and the robot steers by the speed difference of its two wheels. The program runs every 0.5 ms, exactly as in the C++ reference simulator. The 5 cm gap needs no special rule: both sensors see white, so the robot drives straight across it.</p>
+            <p>What it does not model: wheel slip, battery sag, sensor noise or sensor height. Treat the numbers as a comparison between settings, then confirm on the real track.</p>
+          </div>
+        </div>
+      </div>
+
+      <div role="tabpanel" id="p-code" aria-labelledby="tab-code" hidden>
+        <div class="codeview">
+          <pre class="code" id="codePre"></pre>
+          <div class="codeside">
+            <div><h3 class="small" style="text-transform:uppercase;letter-spacing:.08em">Running now</h3><div class="rule" id="codeRule"></div></div>
+            <div class="small">The highlighted lines are the branch of <span class="mono">followLine()</span> that ran most recently at this moment of the playback. Scrub the timeline or play at 0.1&times; to step through it. This is the real LF3 source; the page runs a line-by-line JavaScript translation of it.</div>
+            <dl class="kv" id="codeVars"></dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" hidden></div>
+<script>window.LF_DATA = {"followLine":"// The heart of the program: read both sensors and decide what to do.\nvoid followLine() {\n  bool left  = sensorOnBlack(PIN_SENSOR_LEFT);\n  bool right = sensorOnBlack(PIN_SENSOR_RIGHT);\n\n  // What was the robot doing just before this reading?\n  bool searching = (action == ACT_SEARCH_LEFT || action == ACT_SEARCH_RIGHT);\n  bool sharpTurn = (action == ACT_LEFT || action == ACT_RIGHT) && timeInAction() >= SHARP_AFTER_MS;\n\n  if (left && !right) {\n    // BLACK | white : the line is under the left sensor -> turn left\n    lineMemory = ACT_STRAIGHT;              // we can see the line: nothing to remember\n    setAction(ACT_LEFT);\n    drive(innerWheelSpeed(), TURN_OUTER);\n  }\n  else if (!left && right) {\n    // white | BLACK : the line is under the right sensor -> turn right\n    lineMemory = ACT_STRAIGHT;\n    setAction(ACT_RIGHT);\n    drive(TURN_OUTER, innerWheelSpeed());\n  }\n  else if (searching || (left && sharpTurn)) {\n    // Spinning round a corner: either searching for a lost line, or both sensors\n    // went black in the middle of a sharp turn (the robot is on top of a corner).\n    // Keep spinning the same way until exactly one sensor sees the line.\n    if (timeInAction() >= SEARCH_GIVE_UP_MS) {\n      stopRun(\"line lost - could not find it again\");\n      return;\n    }\n    spin(action == ACT_LEFT || action == ACT_SEARCH_LEFT);\n  }\n  else if (!left && !right) {\n    // white | white : the line is between the sensors (or in a gap) -> straight on\n    if (sharpTurn) {\n      lineMemory = action;                  // a sharp turn just ended: remember which way it went\n    }\n    setAction(ACT_STRAIGHT);\n    if (lineMemory != ACT_STRAIGHT && timeInAction() >= LOST_AFTER_MS) {\n      // LINE MEMORY: still no line LOST_AFTER_MS after a sharp turn, so the robot\n      // must have shot past a sharp corner. Spin back the way it was turning.\n      setAction(lineMemory == ACT_LEFT ? ACT_SEARCH_LEFT : ACT_SEARCH_RIGHT);\n      lineMemory = ACT_STRAIGHT;\n      spin(action == ACT_SEARCH_LEFT);\n    } else {\n      drive(SPEED_STRAIGHT, SPEED_STRAIGHT);\n    }\n  }\n  else {\n    // BLACK | BLACK : a crossing line or a junction -> keep going straight\n    lineMemory = ACT_STRAIGHT;\n    if (setAction(ACT_CROSSING)) {          // just arrived at a new junction\n      junctionCount++;\n      if (junctionCount == STOP_AT_JUNCTION) {\n        stopAtJunction();\n        return;\n      }\n    }\n    if (STOP_AT_STOP_BOX && timeInAction() >= STOP_BOX_MS) {\n      stopRun(\"stop box\");\n      return;\n    }\n    if (timeInAction() >= LIFTED_STOP_MS) {\n      stopRun(\"both sensors saw black for 1 s (robot lifted?)\");\n      return;\n    }\n    drive(SPEED_CROSSING, SPEED_CROSSING);\n  }\n\n  if (DEBUG && millis() - lastDebugPrint >= 100) {\n    lastDebugPrint = millis();\n    Serial.print(left ? F(\"L:BLACK \") : F(\"L:white \"));\n    Serial.print(right ? F(\"R:BLACK  \") : F(\"R:white  \"));\n    if (action == ACT_STRAIGHT)      Serial.println(F(\"straight\"));\n    else if (action == ACT_LEFT)     Serial.println(F(\"turn left\"));\n    else if (action == ACT_RIGHT)    Serial.println(F(\"turn right\"));\n    else if (action == ACT_CROSSING) Serial.println(F(\"crossing\"));\n    else                             Serial.println(F(\"searching for the line\"));\n  }\n}","robust":[{"key":"default_on_200","label":"Default, line memory on","rpm":200,"vmax":0.5,"settings":{"SHARP_AFTER_MS":30,"LOST_AFTER_MS":250},"cppPass":72,"jsPass":72,"cppLap":"16.74","perCondition":[{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true}]},{"key":"default_on_300","label":"Default, line memory on","rpm":300,"vmax":0.75,"settings":{"SHARP_AFTER_MS":30,"LOST_AFTER_MS":250},"cppPass":56,"jsPass":56,"cppLap":"11.15","perCondition":[{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true}]},{"key":"default_off_200","label":"Default, line memory off","rpm":200,"vmax":0.5,"settings":{"SHARP_AFTER_MS":30,"LOST_AFTER_MS":99999},"cppPass":64,"jsPass":64,"cppLap":"16.74","perCondition":[{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true}]},{"key":"default_off_300","label":"Default, line memory off","rpm":300,"vmax":0.75,"settings":{"SHARP_AFTER_MS":30,"LOST_AFTER_MS":99999},"cppPass":49,"jsPass":49,"cppLap":"11.15","perCondition":[{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true}]},{"key":"slower_300","label":"Slower (125/110/145/-125)","rpm":300,"vmax":0.75,"settings":{"SHARP_AFTER_MS":30,"LOST_AFTER_MS":250,"SPEED_STRAIGHT":125,"SPEED_CROSSING":110,"TURN_OUTER":145,"TURN_INNER_SHARP":-125},"cppPass":67,"jsPass":67,"cppLap":"15.20","perCondition":[{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true}]},{"key":"faster_200","label":"Faster (180/150/200/-170)","rpm":200,"vmax":0.5,"settings":{"SHARP_AFTER_MS":30,"LOST_AFTER_MS":250,"SPEED_STRAIGHT":180,"SPEED_CROSSING":150,"TURN_OUTER":200,"TURN_INNER_SHARP":-170},"cppPass":64,"jsPass":64,"cppLap":"12.64","perCondition":[{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true}]},{"key":"muchfaster_200","label":"Much faster (210/170/230/-190)","rpm":200,"vmax":0.5,"settings":{"SHARP_AFTER_MS":30,"LOST_AFTER_MS":250,"SPEED_STRAIGHT":210,"SPEED_CROSSING":170,"TURN_OUTER":230,"TURN_INNER_SHARP":-190},"cppPass":50,"jsPass":50,"cppLap":"10.48","perCondition":[{"ok":false},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":false},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":false},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":false},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":false},{"ok":true},{"ok":false},{"ok":false},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true},{"ok":true}]}],"validatedAt":"2026-11-11T21:02:45.949Z"};</script>
+<script id="lf-core">
+/*
+ * mathlib.js - maths helpers that make the JavaScript simulation match the C++ / Python reference.
+ *
+ *  - sin / cos : correctly rounded (double-double evaluation).  glibc's sin/cos (used by sim.cpp and
+ *                run_sim.py) are correctly rounded for >99.8 % of inputs; V8's Math.sin/Math.cos (fdlibm)
+ *                differ from glibc in the last bit for about 3 % of inputs.  Using a correctly rounded
+ *                version keeps the JS world model as close as possible to the C++ one.
+ *  - hypot     : line-by-line port of glibc 2.35+ e_hypot.c (non-FMA kernel) - bit-identical to glibc.
+ *  - pyDist    : port of CPython 3.13 math.dist() / vector_norm() for 2-D points (used by write_track()).
+ *  - cfmt      : printf("%.*f") formatting (round-half-even on exact ties, "-0.000" for negative zero).
+ *
+ * Plain script: works in a browser (defines globalThis.LFMath), in a Worker, and in Node (module.exports).
+ */
+(function (root) {
+  'use strict';
+
+  // ---------------------------------------------------------------- double-double primitives
+  const SPLIT = 134217729; // 2^27 + 1 (Veltkamp split)
+
+  function twoSum(a, b) { // exact: a + b = s + e
+    const s = a + b;
+    const bb = s - a;
+    const e = (a - (s - bb)) + (b - bb);
+    return [s, e];
+  }
+  function twoProd(a, b) { // exact: a * b = p + e   (Dekker)
+    const p = a * b;
+    let t = SPLIT * a;
+    const ah = t - (t - a), al = a - ah;
+    t = SPLIT * b;
+    const bh = t - (t - b), bl = b - bh;
+    const e = ((ah * bh - p) + ah * bl + al * bh) + al * bl;
+    return [p, e];
+  }
+  // dd + dd
+  function ddAdd(ah, al, bh, bl) {
+    let [s, e] = twoSum(ah, bh);
+    let [t, f] = twoSum(al, bl);
+    e += t;
+    let s2 = s + e; e = e - (s2 - s); s = s2;
+    e += f;
+    s2 = s + e; e = e - (s2 - s);
+    return [s2, e];
+  }
+  // dd * dd
+  function ddMul(ah, al, bh, bl) {
+    let [p, e] = twoProd(ah, bh);
+    e += ah * bl + al * bh;
+    const s = p + e;
+    return [s, e - (s - p)];
+  }
+  // dd / double
+  function ddDivD(ah, al, b) {
+    const q1 = ah / b;
+    let [p, e] = twoProd(q1, b);
+    let [s, f] = twoSum(ah, -p);
+    f -= e; f += al;
+    const q2 = (s + f) / b;
+    const r = q1 + q2;
+    return [r, q2 - (r - q1)];
+  }
+
+  // ---------------------------------------------------------------- pi/2 in four 33-bit pieces (fdlibm)
+  const F64 = new Float64Array(1), U32 = new Uint32Array(F64.buffer);
+  const LITTLE = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+  function fromBits(hi, lo) {
+    if (LITTLE) { U32[1] = hi; U32[0] = lo; } else { U32[0] = hi; U32[1] = lo; }
+    return F64[0];
+  }
+  const PIO2_1 = fromBits(0x3FF921FB, 0x54400000);   // first 33 bits of pi/2
+  const PIO2_2 = fromBits(0x3DD0B461, 0x1A600000);   // next 33 bits
+  const PIO2_3 = fromBits(0x3BA3198A, 0x2E000000);   // next 33 bits
+  const PIO2_3T = fromBits(0x397B839A, 0x252049C1);  // pi/2 - (PIO2_1 + PIO2_2 + PIO2_3)
+  const INV_PIO2 = 6.36619772367581382433e-01;
+
+  // Taylor coefficients (-1)^k / (2k+1)!  and  (-1)^k / (2k)!  as double-doubles
+  const SIN_C = [], COS_C = [];
+  (function () {
+    let fh = 1, fl = 0; // 1/n!
+    for (let n = 1; n <= 31; n++) {
+      [fh, fl] = ddDivD(fh, fl, n);
+      const k = n >> 1, sg = (k % 2 === 0) ? 1 : -1;
+      if (n % 2 === 1) SIN_C.push([sg * fh, sg * fl]); // n = 2k+1
+      else COS_C.push([sg * fh, sg * fl]);             // n = 2k
+    }
+  })();
+  // SIN_C[k] = (-1)^k/(2k+1)!, k = 0..15 ; COS_C[k-1] = (-1)^k/(2k)!, k = 1..15
+
+  // Flatten the coefficients for the fast scalar evaluation below.
+  const SCH = new Float64Array(16), SCL = new Float64Array(16), CCH = new Float64Array(15), CCL = new Float64Array(15);
+  for (let k = 0; k < 16; k++) { SCH[k] = SIN_C[k][0]; SCL[k] = SIN_C[k][1]; }
+  for (let k = 0; k < 15; k++) { CCH[k] = COS_C[k][0]; CCL[k] = COS_C[k][1]; }
+
+  // sincos of a double: results in OUT_S / OUT_C. Everything is scalar double-double arithmetic
+  // (no allocations), relative error ~1e-30 before the final rounding, so the results are the
+  // correctly rounded values except in astronomically rare cases.
+  let OUT_S = 0, OUT_C = 1;
+  function sincos(x) {
+    if (!isFinite(x) || Math.abs(x) > 524288) { OUT_S = Math.sin(x); OUT_C = Math.cos(x); return; }
+    if (Math.abs(x) < 1e-8) { OUT_S = Math.sin(x); OUT_C = Math.cos(x); return; }   // sin = x, cos = 1 (both libs)
+    // --- reduction  x = k*pi/2 + (rh + rl)
+    const k = Math.round(x * INV_PIO2);
+    let rh = x, rl = 0;
+    if (k !== 0) {
+      rh = x - k * PIO2_1;
+      let s, bb, e, t;
+      // rh += -k*PIO2_2 (exact product)
+      t = -k * PIO2_2; s = rh + t; bb = s - rh; e = (rh - (s - bb)) + (t - bb); rh = s; rl = e;
+      t = -k * PIO2_3; s = rh + t; bb = s - rh; e = (rh - (s - bb)) + (t - bb) + rl; rh = s + e; rl = e - (rh - s);
+      // - k*PIO2_3T (two-product)
+      const p = k * PIO2_3T;
+      let u = SPLIT * k; const kh = u - (u - k), kl = k - kh;
+      u = SPLIT * PIO2_3T; const ph = u - (u - PIO2_3T), pl = PIO2_3T - ph;
+      const pe = ((kh * ph - p) + kh * pl + kl * ph) + kl * pl;
+      s = rh - p; bb = s - rh; e = (rh - (s - bb)) + (-p - bb); e += rl - pe; rh = s + e; rl = e - (rh - s);
+    }
+    // --- z = r^2 (dd)
+    let u = SPLIT * rh; const rH = u - (u - rh), rL = rh - rH;
+    let zh = rh * rh;
+    let ze = ((rH * rH - zh) + 2 * rH * rL) + rL * rL;
+    ze += 2 * rh * rl;
+    let tz = zh + ze; ze = ze - (tz - zh); zh = tz;
+    u = SPLIT * zh; const zH = u - (u - zh), zL = zh - zH;
+    // --- sin polynomial  P = sum SIN_C[k] z^k  (Horner, dd)
+    let ah = SCH[15], al = SCL[15];
+    for (let i = 14; i >= 0; i--) {
+      // (ah,al) *= (zh,ze)
+      u = SPLIT * ah; const aH = u - (u - ah), aL = ah - aH;
+      let p = ah * zh;
+      let e = ((aH * zH - p) + aH * zL + aL * zH) + aL * zL;
+      e += ah * ze + al * zh;
+      let s = p + e; e = e - (s - p);
+      // += (SCH[i], SCL[i])
+      const bh = SCH[i], bl = SCL[i];
+      let s2 = s + bh, bb = s2 - s, e2 = (s - (s2 - bb)) + (bh - bb);
+      e2 += e + bl;
+      ah = s2 + e2; al = e2 - (ah - s2);
+    }
+    // sin(r) = P * r
+    u = SPLIT * ah; let aH = u - (u - ah), aL = ah - aH;
+    let p = ah * rh;
+    let e = ((aH * rH - p) + aH * rL + aL * rH) + aL * rL;
+    e += ah * rl + al * rh;
+    const sinR = p + e;
+    // --- cos polynomial  Q = sum COS_C[k] z^k, cos(r) = 1 + Q*z
+    ah = CCH[14]; al = CCL[14];
+    for (let i = 13; i >= 0; i--) {
+      u = SPLIT * ah; const aH2 = u - (u - ah), aL2 = ah - aH2;
+      let p2 = ah * zh;
+      let e3 = ((aH2 * zH - p2) + aH2 * zL + aL2 * zH) + aL2 * zL;
+      e3 += ah * ze + al * zh;
+      let s = p2 + e3; e3 = e3 - (s - p2);
+      const bh = CCH[i], bl = CCL[i];
+      let s2 = s + bh, bb = s2 - s, e2 = (s - (s2 - bb)) + (bh - bb);
+      e2 += e3 + bl;
+      ah = s2 + e2; al = e2 - (ah - s2);
+    }
+    u = SPLIT * ah; aH = u - (u - ah); aL = ah - aH;
+    p = ah * zh;
+    e = ((aH * zH - p) + aH * zL + aL * zH) + aL * zL;
+    e += ah * ze + al * zh;
+    let qh = p + e, ql = e - (qh - p);
+    // 1 + q
+    let s1 = 1 + qh, b1 = s1 - 1, e1 = (1 - (s1 - b1)) + (qh - b1);
+    e1 += ql;
+    const cosR = s1 + e1;
+    const q = ((k % 4) + 4) % 4;
+    if (q === 0) { OUT_S = sinR; OUT_C = cosR; }
+    else if (q === 1) { OUT_S = cosR; OUT_C = -sinR; }
+    else if (q === 2) { OUT_S = -sinR; OUT_C = -cosR; }
+    else { OUT_S = -cosR; OUT_C = sinR; }
+  }
+  function crSin(x) { if (x === 0) return x; sincos(x); return OUT_S; }
+  function crCos(x) { sincos(x); return OUT_C; }
+  // both at once, written into out[0] (sin) and out[1] (cos)
+  function crSinCos(x, out) { if (x === 0) { out[0] = x; out[1] = 1; return; } sincos(x); out[0] = OUT_S; out[1] = OUT_C; }
+
+  // ---------------------------------------------------------------- glibc hypot (sysdeps/ieee754/dbl-64/e_hypot.c)
+  const EPS = Math.pow(2, -54);
+  function hypot(x, y) {
+    if (!isFinite(x) || !isFinite(y)) return Math.hypot(x, y);
+    x = Math.abs(x); y = Math.abs(y);
+    const ax = x < y ? y : x, ay = x < y ? x : y;
+    // (the LARGE_VAL / TINY_VAL rescaling branches never trigger for distances in this simulation)
+    if (ay <= ax * EPS) return ax + ay;
+    let h = Math.sqrt(ax * ax + ay * ay), t1, t2;
+    if (h <= 2.0 * ay) {
+      const delta = h - ay;
+      t1 = ax * (2.0 * delta - ax);
+      t2 = (delta - 2.0 * (ax - ay)) * delta;
+    } else {
+      const delta = h - ax;
+      t1 = 2.0 * delta * (ax - 2.0 * ay);
+      t2 = (4.0 * delta - ay) * ay + delta * delta;
+    }
+    h -= (t1 + t2) / (2.0 * h);
+    return h;
+  }
+
+  // ---------------------------------------------------------------- CPython 3.13 math.dist for 2-D points
+  function frexpExp(v) { // exponent e with v = m * 2^e, 0.5 <= m < 1 (v > 0, normal)
+    let e = Math.floor(Math.log2(v)) + 1;
+    let m = v / Math.pow(2, e);
+    while (m >= 1) { e++; m = v / Math.pow(2, e); }
+    while (m < 0.5) { e--; m = v / Math.pow(2, e); }
+    return e;
+  }
+  function pyDist(ax, ay, bx, by) {
+    const v0 = Math.abs(ax - bx), v1 = Math.abs(ay - by);
+    const max = v0 > v1 ? v0 : v1;
+    if (max === 0) return 0;
+    const scale = Math.pow(2, -frexpExp(max));
+    let csum = 1.0, frac1 = 0.0, frac2 = 0.0;
+    for (const v of [v0, v1]) {
+      const x = v * scale;
+      const [ph, pl] = twoProd(x, x);
+      const sh = csum + ph; const sl = ph - (sh - csum); // dl_fast_sum
+      csum = sh; frac1 += pl; frac2 += sl;
+    }
+    let h = Math.sqrt(csum - 1.0 + (frac1 + frac2));
+    {
+      const [ph, pl] = twoProd(-h, h);
+      const sh = csum + ph; const sl = ph - (sh - csum);
+      csum = sh; frac1 += pl; frac2 += sl;
+    }
+    const x = csum - 1.0 + (frac1 + frac2);
+    h += x / (2.0 * h);
+    return h / scale;
+  }
+
+  // ---------------------------------------------------------------- printf("%.Nf")
+  function cfmt(x, d) {
+    const neg = x < 0 || Object.is(x, -0);
+    const a = Math.abs(x);
+    let s = a.toFixed(d);
+    // toFixed rounds exact ties upwards; C rounds exact ties to even. Ties are rare (exact binary values).
+    const full = a.toFixed(Math.min(100, d + 60));
+    const tail = full.slice(full.length - 60);
+    if (tail[0] === '5' && /^50*$/.test(tail)) {
+      const trunc = full.slice(0, full.length - 60);
+      const lastDigit = +(trunc[trunc.length - 1] === '.' ? trunc[trunc.length - 2] : trunc[trunc.length - 1]);
+      if (lastDigit % 2 === 0) s = trunc.endsWith('.') ? trunc.slice(0, -1) : trunc; // round down to even
+    }
+    return (neg ? '-' : '') + s;
+  }
+
+  const api = { sin: crSin, cos: crCos, sincos: crSinCos, hypot, pyDist, cfmt, twoProd, twoSum, nativeSin: Math.sin, nativeCos: Math.cos };
+  root.LFMath = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/*
+ * params.js - the numbers the page and the tests share: motor RPM -> top speed, the setting presets,
+ * and the 72-condition robustness set of robust.py / robust2.py.
+ */
+(function (root) {
+  'use strict';
+
+  // v_max (m/s) = (RPM / 400) * (wheel diameter / 65 mm), computed in exactly this order,
+  // so 200 RPM -> 0.5 and 300 RPM -> 0.75 exactly with 65 mm wheels.
+  function rpmToVmax(rpm, wheelMm) {
+    return (rpm / 400) * (wheelMm / 65);
+  }
+
+  // centimetres / millimetres -> metres through text, so 3.8 cm becomes exactly the double 0.038
+  // (3.8 / 100 would give 0.037999999999999999 in floating point).
+  function cm(v) { return parseFloat(String(v) + 'e-2'); }
+  function mm(v) { return parseFloat(String(v) + 'e-3'); }
+
+  const PRESETS = {
+    default:     { label: 'Default',                    SPEED_STRAIGHT: 150, SPEED_CROSSING: 130, TURN_OUTER: 170, TURN_INNER_SOFT: 0, TURN_INNER_SHARP: -150 },
+    slower:      { label: 'Slower (for 300 RPM motors)', SPEED_STRAIGHT: 125, SPEED_CROSSING: 110, TURN_OUTER: 145, TURN_INNER_SOFT: 0, TURN_INNER_SHARP: -125 },
+    faster:      { label: 'Faster',                     SPEED_STRAIGHT: 180, SPEED_CROSSING: 150, TURN_OUTER: 200, TURN_INNER_SOFT: 0, TURN_INNER_SHARP: -170 },
+    muchFaster:  { label: 'Much faster',                SPEED_STRAIGHT: 210, SPEED_CROSSING: 170, TURN_OUTER: 230, TURN_INNER_SOFT: 0, TURN_INNER_SHARP: -190 },
+  };
+  const PRESET_TIMING = { SHARP_AFTER_MS: 30, LOST_AFTER_MS: 250, SEARCH_GIVE_UP_MS: 2000 };
+  const SETTING_KEYS = ['SPEED_STRAIGHT', 'SPEED_CROSSING', 'TURN_OUTER', 'TURN_INNER_SOFT', 'TURN_INNER_SHARP',
+    'SHARP_AFTER_MS', 'LOST_AFTER_MS', 'SEARCH_GIVE_UP_MS'];
+  const MEMORY_OFF_LOST_MS = 99999;   // "line memory off", exactly as robust.py candidate F does it
+
+  function presetSettings(name) {
+    const p = PRESETS[name];
+    const s = {};
+    for (const k of SETTING_KEYS) s[k] = (k in p) ? p[k] : PRESET_TIMING[k];
+    return s;
+  }
+
+  // The robustness set: line width {2.0, 2.5, 3.0 cm} x sensors ahead {5, 7, 9 cm} x TAU {0.05, 0.10 s}
+  // x DEAD {40, 80} x wheel spacing {12, 15 cm}; sensor spacing 4.0 cm.  Same order as itertools.product
+  // in robust.py (line width, spacing, vmax, ahead, tau, dead, wheel spacing).
+  const ROBUST = { lineW: [0.020, 0.025, 0.030], spacing: 0.040, ahead: [0.05, 0.07, 0.09], tau: [0.05, 0.10], dead: [40, 80], wheelTrack: [0.12, 0.15] };
+  function robustConditions() {
+    const out = [];
+    for (const lineW of ROBUST.lineW) for (const ahead of ROBUST.ahead) for (const tau of ROBUST.tau)
+      for (const dead of ROBUST.dead) for (const wheelTrack of ROBUST.wheelTrack)
+        out.push({ lineW, spacing: ROBUST.spacing, ahead, tau, dead, wheelTrack });
+    return out;
+  }
+
+  const DEFAULT_BUILD = { spacingCm: 3.8, aheadCm: 7, wheelTrackCm: 13, wheelMm: 65, tau: 0.08, dead: 60 };
+
+  const api = { rpmToVmax, cm, mm, PRESETS, PRESET_TIMING, SETTING_KEYS, MEMORY_OFF_LOST_MS, presetSettings, ROBUST, robustConditions, DEFAULT_BUILD };
+  root.LFParams = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/*
+ * track.js - port of build_path() and write_track() from reference/sim/run_sim.py.
+ *
+ * The C++ simulator does not use the Python numbers directly: it reads them back from CSV files that were
+ * written with "%.5f".  So this module builds the path exactly like Python and then rounds every number
+ * through the same "%.5f" text, which gives the C++ simulator's input bit for bit (checked by the tests
+ * against the CSV files written by run_sim.py).
+ */
+(function (root) {
+  'use strict';
+  const LM = root.LFMath || (typeof require !== 'undefined' ? require('./mathlib.js') : null);
+  const STEP = 0.002;
+
+  function pyRound(v) { // Python 3 round(): ties to even
+    const f = Math.floor(v), d = v - f;
+    if (d > 0.5) return f + 1;
+    if (d < 0.5) return f;
+    return (f % 2 === 0) ? f : f + 1;
+  }
+  const radians = (deg) => deg * (Math.PI / 180.0);
+
+  function buildPath() {
+    let x = 0.0, y = 0.0, h = 0.0;
+    const pts = [[x, y]], feats = {};
+    const sin = LM.sin, cos = LM.cos;
+
+    function straight(L) {
+      const n = Math.max(1, Math.trunc(pyRound(L / STEP)));
+      for (let i = 0; i < n; i++) {
+        x += cos(h) * L / n;
+        y += sin(h) * L / n;
+        pts.push([x, y]);
+      }
+    }
+    function arc(R, deg) { // deg > 0 = left
+      const ang = radians(deg);
+      const n = Math.max(2, Math.trunc(Math.abs(R * ang) / STEP));
+      const cx = x - sin(h) * R * (deg > 0 ? 1 : -1), cy = y + cos(h) * R * (deg > 0 ? 1 : -1);
+      for (let i = 0; i < n; i++) {
+        h += ang / n;
+        const sgn = deg > 0 ? 1 : -1;
+        x = cx + sin(h) * R * sgn;
+        y = cy - cos(h) * R * sgn;
+        pts.push([x, y]);
+      }
+    }
+    function corner(deg) { h += radians(deg); }
+
+    straight(0.50);
+    arc(0.25, 90);
+    straight(0.20); feats.crossing = [x, y, h]; straight(0.25);
+    arc(0.15, -90);
+    straight(0.25); feats.gap_start = pts.length - 1; straight(0.05); feats.gap_end = pts.length - 1; straight(0.20);
+    feats.corner = [x, y]; corner(90);
+    straight(0.35);
+    arc(0.12, 90);
+    straight(0.20);
+    arc(0.10, 90);
+    arc(0.10, -90);
+    straight(0.40);
+    return { pts, feats };
+  }
+
+  // Returns the same data the C++ simulator loads: strokes (tape pieces) and centre line with distance s.
+  function writeTrack() {
+    const { pts, feats } = buildPath();
+    const s = [0.0];
+    for (let i = 1; i < pts.length; i++) s.push(s[i - 1] + LM.pyDist(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]));
+
+    const f5 = (v) => LM.cfmt(v, 5);
+    const centreLines = [];
+    const centre = { x: new Float64Array(pts.length), y: new Float64Array(pts.length), s: new Float64Array(pts.length) };
+    for (let i = 0; i < pts.length; i++) {
+      const a = f5(pts[i][0]), b = f5(pts[i][1]), c = f5(s[i]);
+      centreLines.push(a + ',' + b + ',' + c);
+      centre.x[i] = parseFloat(a); centre.y[i] = parseFloat(b); centre.s[i] = parseFloat(c); // == sscanf("%lf")
+    }
+    const g0 = feats.gap_start, g1 = feats.gap_end;
+    const [cx, cy, ch] = feats.crossing;
+    const nx = -LM.sin(ch), ny = LM.cos(ch);
+    const cross = [];
+    for (let k = 0; k < 151; k++) cross.push([cx - nx * 0.15 + nx * 0.3 * k / 150, cy - ny * 0.15 + ny * 0.3 * k / 150]);
+    const strokesRaw = [pts.slice(0, g0 + 1), pts.slice(g1), cross];
+    const strokeLines = [];
+    const strokes = strokesRaw.map((st, i) => {
+      const xs = new Float64Array(st.length), ys = new Float64Array(st.length);
+      st.forEach(([px, py], j) => {
+        const a = f5(px), b = f5(py);
+        strokeLines.push(i + ',' + a + ',' + b);
+        xs[j] = parseFloat(a); ys[j] = parseFloat(b);
+      });
+      return { x: xs, y: ys, n: st.length };
+    });
+    const length = s[s.length - 1];
+    return {
+      strokes, centre, length,
+      total: centre.s[centre.s.length - 1],          // centreS.back() as the C++ sees it
+      features: { crossing: [cx, cy], crossingHeading: ch, corner: feats.corner, gap: pts[g0], gapEnd: pts[g1], end: pts[pts.length - 1], start: pts[0],
+                  gapIndex: [g0, g1] },
+      csv: { centre: centreLines.join('\n') + '\n', strokes: strokeLines.join('\n') + '\n' },
+    };
+  }
+
+  const api = { buildPath, writeTrack, STEP };
+  root.LFTrack = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/*
+ * lf3_sketch.js - LF3_Line_Follower.ino translated to JavaScript, function by function.
+ *
+ *   createLF3(arduino, settings, probe)  ->  { setup, loop, vars }
+ *
+ * - arduino : the Arduino functions the sketch calls (pinMode, digitalWrite, digitalRead, analogRead,
+ *             analogWrite, millis, delay, Serial) - provided by world.js exactly like arduino_mock.h + sim.cpp.
+ * - settings: values for the "const" settings (the same constants variants.py patches). Missing = sketch default.
+ * - probe   : optional object the sketch writes notes into ("[probe]" lines) so the viewer can show which
+ *             branch of followLine() ran. Probes only write to that object; they never change the logic.
+ *
+ * Every call to createLF3() makes a fresh copy of all global and static variables, like starting a new
+ * C++ process for each run.  Integer behaviour:
+ *   - millis() returns whole milliseconds; unsigned long differences go through usub() (64-bit unsigned,
+ *     as unsigned long is 64 bits in the g++ build of the reference simulator)
+ *   - constrain() is the arduino_mock.h macro; int / byte values stay whole numbers.
+ */
+(function (root) {
+  'use strict';
+
+  const ULONG_WRAP = 18446744073709551616; // 2^64
+  function usub(a, b) { return a >= b ? a - b : a - b + ULONG_WRAP; } // unsigned long a - b
+
+  function createLF3(A, S, probe) {
+    S = S || {};
+    probe = probe || {};
+    const { pinMode, digitalWrite, digitalRead, analogRead, analogWrite, millis, delay, Serial } = A;
+    const HIGH = 1, LOW = 0, INPUT = 0, OUTPUT = 1, INPUT_PULLUP = 2;
+    const A1 = 15, A3 = 17, A5 = 19;
+    const F = (s) => s;
+    const constrain = (amt, low, high) => ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)));
+    const int = (v, d) => (v === undefined || v === null) ? d : Math.trunc(Number(v));
+    const ulong = (v, d) => { const n = int(v, d); if (!(n >= 0)) throw new Error('unsigned setting must be >= 0'); return n; };
+
+    // ---------------------------------------------------------------------
+    // 1. PINS
+    // ---------------------------------------------------------------------
+    const PIN_ENA = 3, PIN_IN1 = 4, PIN_IN2 = 5, PIN_IN3 = 6, PIN_IN4 = 7, PIN_ENB = 11;
+    const PIN_SENSOR_LEFT = A1, PIN_SENSOR_RIGHT = A3;
+    const PIN_START = 12, PIN_LED = 13, PIN_BATTERY = A5;
+
+    // ---------------------------------------------------------------------
+    // 2. SETTINGS
+    // ---------------------------------------------------------------------
+    const SENSOR_HIGH_ON_BLACK = S.SENSOR_HIGH_ON_BLACK !== undefined ? !!S.SENSOR_HIGH_ON_BLACK : true;
+    const LEFT_MOTOR_REVERSED = !!S.LEFT_MOTOR_REVERSED;
+    const RIGHT_MOTOR_REVERSED = !!S.RIGHT_MOTOR_REVERSED;
+
+    const SPEED_STRAIGHT = int(S.SPEED_STRAIGHT, 150);
+    const SPEED_CROSSING = int(S.SPEED_CROSSING, 130);
+    const TURN_OUTER = int(S.TURN_OUTER, 170);
+    const TURN_INNER_SOFT = int(S.TURN_INNER_SOFT, 0);
+    const TURN_INNER_SHARP = int(S.TURN_INNER_SHARP, -150);
+
+    const SHARP_AFTER_MS = ulong(S.SHARP_AFTER_MS, 30);
+    const START_DELAY_MS = ulong(S.START_DELAY_MS, 1000);
+    const KICK_MS = ulong(S.KICK_MS, 40);
+    const LIFTED_STOP_MS = ulong(S.LIFTED_STOP_MS, 1000);
+    const LOST_AFTER_MS = ulong(S.LOST_AFTER_MS, 250);
+    const SEARCH_GIVE_UP_MS = ulong(S.SEARCH_GIVE_UP_MS, 2000);
+
+    const STOP_AT_STOP_BOX = !!S.STOP_AT_STOP_BOX;
+    const STOP_BOX_MS = ulong(S.STOP_BOX_MS, 250);
+
+    const STOP_AT_JUNCTION = int(S.STOP_AT_JUNCTION, 0);
+    const JUNCTION_WAIT_MS = ulong(S.JUNCTION_WAIT_MS, 3000);
+
+    const LOW_BATTERY_VOLTS = Math.fround(6.8);   // const float
+    const DEBUG = !!S.DEBUG;
+
+    // ---------------------------------------------------------------------
+    // 3. VARIABLES
+    // ---------------------------------------------------------------------
+    let running = false;
+    let batteryLow = false;
+    let runStartedAt = 0;
+
+    const ACT_STRAIGHT = 0, ACT_LEFT = 1, ACT_RIGHT = 2, ACT_CROSSING = 3, ACT_SEARCH_LEFT = 4, ACT_SEARCH_RIGHT = 5;
+    let action = ACT_STRAIGHT;
+    let actionSince = 0;
+    let lineMemory = ACT_STRAIGHT;
+    let junctionCount = 0;
+    let lastDebugPrint = 0;
+
+    // ---------------------------------------------------------------------
+    // 4. MOTORS
+    // ---------------------------------------------------------------------
+    function setMotor(pinSpeed, pinDirA, pinDirB, speed, reversed) {
+      if (reversed) speed = -speed;
+      speed = constrain(speed, -255, 255);
+
+      if (speed > 0) {
+        digitalWrite(pinDirA, HIGH);
+        digitalWrite(pinDirB, LOW);
+      } else if (speed < 0) {
+        digitalWrite(pinDirA, LOW);
+        digitalWrite(pinDirB, HIGH);
+        speed = -speed;
+      } else {
+        digitalWrite(pinDirA, LOW);
+        digitalWrite(pinDirB, LOW);
+      }
+      analogWrite(pinSpeed, speed);
+    }
+
+    function drive(leftSpeed, rightSpeed) {
+      setMotor(PIN_ENA, PIN_IN1, PIN_IN2, leftSpeed, LEFT_MOTOR_REVERSED);
+      setMotor(PIN_ENB, PIN_IN3, PIN_IN4, rightSpeed, RIGHT_MOTOR_REVERSED);
+    }
+
+    function brakeMotors() {
+      digitalWrite(PIN_IN1, LOW);
+      digitalWrite(PIN_IN2, LOW);
+      digitalWrite(PIN_IN3, LOW);
+      digitalWrite(PIN_IN4, LOW);
+      analogWrite(PIN_ENA, 255);
+      analogWrite(PIN_ENB, 255);
+    }
+
+    // ---------------------------------------------------------------------
+    // 5. SENSORS, BUTTON AND BATTERY
+    // ---------------------------------------------------------------------
+    function sensorOnBlack(pin) {
+      const isHigh = (digitalRead(pin) === HIGH);
+      if (SENSOR_HIGH_ON_BLACK) {
+        return isHigh;
+      }
+      return !isHigh;
+    }
+
+    // static variables of startButtonPressed()
+    let startButtonPressed_wasDown = false;
+    let startButtonPressed_lastChange = 0;
+    function startButtonPressed() {
+      const isDown = (digitalRead(PIN_START) === LOW);
+      if (isDown === startButtonPressed_wasDown) return false;
+      if (usub(millis(), startButtonPressed_lastChange) < 50) return false;
+      startButtonPressed_lastChange = millis();
+      startButtonPressed_wasDown = isDown;
+      return isDown;
+    }
+
+    function readBatteryVolts() {
+      let total = 0;                                   // long
+      for (let i = 0; i < 16; i++) {
+        total += analogRead(PIN_BATTERY);
+      }
+      const pinVolts = Math.fround((total / 16.0) * 5.0 / 1023.0);   // float
+      return Math.fround(pinVolts * 3.2);                            // returned as float
+    }
+
+    function checkBattery() {
+      const volts = readBatteryVolts();
+      batteryLow = (volts > 3.0 && volts < LOW_BATTERY_VOLTS);
+
+      Serial.print(F('Battery: '));
+      if (volts < 3.0) {
+        Serial.println(F('not connected or switch OFF - the motors cannot run on USB power'));
+      } else {
+        Serial.print(volts, 1);
+        Serial.println(batteryLow ? F(' V  LOW - please recharge') : F(' V  OK'));
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // 6. LINE FOLLOWING
+    // ---------------------------------------------------------------------
+    function setAction(newAction) {
+      if (newAction === action) return false;
+      action = newAction;
+      actionSince = millis();
+      return true;
+    }
+
+    function timeInAction() {
+      return usub(millis(), actionSince);
+    }
+
+    function innerWheelSpeed() {
+      if (timeInAction() < SHARP_AFTER_MS) {
+        return TURN_INNER_SOFT;
+      }
+      return TURN_INNER_SHARP;
+    }
+
+    function stopRun(reason) {
+      probe.phase = 'STOPPING'; probe.stopReason = reason;            // [probe]
+      brakeMotors();
+      delay(200);
+      drive(0, 0);
+      running = false;
+      digitalWrite(PIN_LED, LOW);
+      probe.phase = 'STOPPED';                                         // [probe]
+
+      Serial.print(F('Stopped: '));
+      Serial.println(reason);
+      Serial.print(F('Run time: '));
+      Serial.print(usub(millis(), runStartedAt) / 1000.0, 2);
+      Serial.println(F(' s'));
+      checkBattery();
+    }
+
+    function startRun() {
+      digitalWrite(PIN_LED, HIGH);
+      Serial.println(F('START pressed - starting in 1 second'));
+      probe.phase = 'START_DELAY';                                     // [probe]
+      delay(START_DELAY_MS);
+
+      drive(255, 255);
+      probe.phase = 'KICK';                                            // [probe]
+      delay(KICK_MS);
+
+      running = true;
+      runStartedAt = millis();
+      action = ACT_STRAIGHT;
+      actionSince = millis();
+      lineMemory = ACT_STRAIGHT;
+      junctionCount = 0;
+      probe.phase = 'RUNNING';                                         // [probe]
+    }
+
+    function stopAtJunction() {
+      brakeMotors();
+      Serial.print(F('Junction '));
+      Serial.print(junctionCount);
+      Serial.println(F(' - stopping'));
+      if (JUNCTION_WAIT_MS === 0) {
+        stopRun('stopped at the junction');
+        return;
+      }
+      probe.phase = 'JUNCTION_WAIT';                                   // [probe]
+      delay(JUNCTION_WAIT_MS);
+      probe.phase = 'RUNNING';                                         // [probe]
+      actionSince = millis();
+    }
+
+    function spin(toLeft) {
+      if (toLeft) {
+        drive(TURN_INNER_SHARP, TURN_OUTER);
+      } else {
+        drive(TURN_OUTER, TURN_INNER_SHARP);
+      }
+    }
+
+    function followLine() {
+      const left = sensorOnBlack(PIN_SENSOR_LEFT);
+      const right = sensorOnBlack(PIN_SENSOR_RIGHT);
+      probe.left = left; probe.right = right;                           // [probe]
+
+      const searching = (action === ACT_SEARCH_LEFT || action === ACT_SEARCH_RIGHT);
+      const sharpTurn = (action === ACT_LEFT || action === ACT_RIGHT) && timeInAction() >= SHARP_AFTER_MS;
+
+      if (left && !right) {
+        // BLACK | white : the line is under the left sensor -> turn left
+        lineMemory = ACT_STRAIGHT;
+        setAction(ACT_LEFT);
+        probe.branch = (timeInAction() < SHARP_AFTER_MS) ? 1 : 2;       // [probe] 1 gentle left, 2 sharp left
+        drive(innerWheelSpeed(), TURN_OUTER);
+      }
+      else if (!left && right) {
+        // white | BLACK : the line is under the right sensor -> turn right
+        lineMemory = ACT_STRAIGHT;
+        setAction(ACT_RIGHT);
+        probe.branch = (timeInAction() < SHARP_AFTER_MS) ? 3 : 4;       // [probe] 3 gentle right, 4 sharp right
+        drive(TURN_OUTER, innerWheelSpeed());
+      }
+      else if (searching || (left && sharpTurn)) {
+        // Spinning round a corner
+        if (timeInAction() >= SEARCH_GIVE_UP_MS) {
+          probe.branch = 6;                                              // [probe] give up
+          stopRun('line lost - could not find it again');
+          return;
+        }
+        probe.branch = 5;                                                // [probe] keep spinning
+        spin(action === ACT_LEFT || action === ACT_SEARCH_LEFT);
+      }
+      else if (!left && !right) {
+        // white | white : the line is between the sensors (or in a gap) -> straight on
+        if (sharpTurn) {
+          lineMemory = action;
+        }
+        setAction(ACT_STRAIGHT);
+        if (lineMemory !== ACT_STRAIGHT && timeInAction() >= LOST_AFTER_MS) {
+          // LINE MEMORY
+          probe.branch = 8;                                              // [probe] start searching
+          setAction(lineMemory === ACT_LEFT ? ACT_SEARCH_LEFT : ACT_SEARCH_RIGHT);
+          lineMemory = ACT_STRAIGHT;
+          spin(action === ACT_SEARCH_LEFT);
+        } else {
+          probe.branch = 7;                                              // [probe] straight
+          drive(SPEED_STRAIGHT, SPEED_STRAIGHT);
+        }
+      }
+      else {
+        // BLACK | BLACK : a crossing line or a junction -> keep going straight
+        lineMemory = ACT_STRAIGHT;
+        probe.branch = 9;                                                // [probe] crossing
+        if (setAction(ACT_CROSSING)) {
+          junctionCount++;
+          if (junctionCount === STOP_AT_JUNCTION) {
+            stopAtJunction();
+            return;
+          }
+        }
+        if (STOP_AT_STOP_BOX && timeInAction() >= STOP_BOX_MS) {
+          stopRun('stop box');
+          return;
+        }
+        if (timeInAction() >= LIFTED_STOP_MS) {
+          probe.branch = 10;                                             // [probe] lifted
+          stopRun('both sensors saw black for 1 s (robot lifted?)');
+          return;
+        }
+        drive(SPEED_CROSSING, SPEED_CROSSING);
+      }
+
+      if (DEBUG && usub(millis(), lastDebugPrint) >= 100) {
+        lastDebugPrint = millis();
+        Serial.print(left ? F('L:BLACK ') : F('L:white '));
+        Serial.print(right ? F('R:BLACK  ') : F('R:white  '));
+        if (action === ACT_STRAIGHT) Serial.println(F('straight'));
+        else if (action === ACT_LEFT) Serial.println(F('turn left'));
+        else if (action === ACT_RIGHT) Serial.println(F('turn right'));
+        else if (action === ACT_CROSSING) Serial.println(F('crossing'));
+        else Serial.println(F('searching for the line'));
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // 7. SETUP AND LOOP
+    // ---------------------------------------------------------------------
+    function setup() {
+      pinMode(PIN_ENA, OUTPUT);
+      pinMode(PIN_IN1, OUTPUT);
+      pinMode(PIN_IN2, OUTPUT);
+      pinMode(PIN_IN3, OUTPUT);
+      pinMode(PIN_IN4, OUTPUT);
+      pinMode(PIN_ENB, OUTPUT);
+      drive(0, 0);
+
+      pinMode(PIN_SENSOR_LEFT, INPUT);
+      pinMode(PIN_SENSOR_RIGHT, INPUT);
+      pinMode(PIN_START, INPUT_PULLUP);
+      pinMode(PIN_LED, OUTPUT);
+
+      Serial.begin(115200);
+      Serial.println(F('Line follower ready - put it on the line and press START'));
+      checkBattery();
+      probe.phase = 'WAITING';                                           // [probe]
+    }
+
+    function loop() {
+      if (!running) {
+        const blinkTime = batteryLow ? 100 : 500;
+        digitalWrite(PIN_LED, Math.floor(millis() / blinkTime) % 2 === 0 ? HIGH : LOW);
+        if (startButtonPressed()) {
+          startRun();
+        }
+        return;
+      }
+
+      if (startButtonPressed()) {
+        stopRun('START pressed');
+        return;
+      }
+      followLine();
+    }
+
+    // read-only view of the sketch's variables for the simulator (sim.cpp reads them directly too)
+    const vars = {
+      get running() { return running; },
+      get action() { return action; },
+      get actionSince() { return actionSince; },
+      get lineMemory() { return lineMemory; },
+      get junctionCount() { return junctionCount; },
+      get runStartedAt() { return runStartedAt; },
+      get batteryLow() { return batteryLow; },
+    };
+    const constants = { SPEED_STRAIGHT, SPEED_CROSSING, TURN_OUTER, TURN_INNER_SOFT, TURN_INNER_SHARP, SHARP_AFTER_MS,
+      START_DELAY_MS, KICK_MS, LIFTED_STOP_MS, LOST_AFTER_MS, SEARCH_GIVE_UP_MS };
+    return { setup, loop, vars, constants };
+  }
+
+  const api = { createLF3, usub };
+  root.LF3Sketch = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/*
+ * world.js - port of reference/sim/sim.cpp: the 2-D robot model that runs the LF3 sketch.
+ *
+ *   LFWorld.simulate(track, params, options) -> run
+ *
+ * params  : { lineW, spacing, ahead, wheelTrack, vmax, dead, tau, settings }   (metres, m/s, PWM, seconds)
+ * options : { record: true  -> keep the state every 1 ms for playback (default true)
+ *             trace:  true  -> also produce the C++ trace.csv text (every 5 ms, same format)
+ *             trig:  'cr' (default, correctly rounded sin/cos) | 'native' (Math.sin/Math.cos) }
+ *
+ * Same order of operations as sim.cpp: 500 us world steps, main loop = loop() then advance(500 us),
+ * delay(ms) advances the world while the sketch waits, first-order wheel lag (TAU / TAU_BRAKE / TAU_COAST),
+ * PWM dead zone, heading updated first then x and y, progress/deviation check every whole millisecond.
+ * onLine() uses a spatial grid, but evaluates exactly the same segments with exactly the same arithmetic
+ * as the C++ loop (the grid only skips segments that the C++ "fabs(..) > 0.03" test would skip anyway).
+ */
+(function (root) {
+  'use strict';
+  const req = (typeof require !== 'undefined') ? require : null;
+  const LM = root.LFMath || req('./mathlib.js');
+  const LF3 = root.LF3Sketch || req('./lf3_sketch.js');
+
+  // ---- grid of tape segments (built once per track and line width)
+  // The C++ onLine() tests every segment whose first point a lies within a 3 cm box of the sensor and
+  // returns true if ANY test succeeds.  A test can only succeed if the sensor is within half a line width
+  // of the segment, so each grid cell only lists the segments whose bounding box comes within
+  // (half line width + 1 mm) of the cell.  The skipped segments would all have returned false, and the
+  // order of the tests cannot matter for an "any" result, so onLine() returns exactly the C++ answer.
+  const G = 0.005;
+  function buildGrid(track, lineW) {
+    track._grids = track._grids || {};
+    if (track._grids[lineW]) return track._grids[lineW];
+    const M = lineW / 2 + 0.001;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const s of track.strokes) for (let i = 0; i < s.n; i++) {
+      minX = Math.min(minX, s.x[i]); maxX = Math.max(maxX, s.x[i]);
+      minY = Math.min(minY, s.y[i]); maxY = Math.max(maxY, s.y[i]);
+    }
+    const ox = Math.floor((minX - M) / G) - 1, oy = Math.floor((minY - M) / G) - 1;
+    const nx = Math.floor((maxX + M) / G) - ox + 2, ny = Math.floor((maxY + M) / G) - oy + 2;
+    const segs = [];
+    track.strokes.forEach((s) => {
+      for (let i = 0; i + 1 < s.n; i++) segs.push([s.x[i], s.y[i], s.x[i + 1], s.y[i + 1], i > 0 ? 1 : 0]);
+    });
+    const SA = new Float64Array(segs.length * 4), SI = new Uint8Array(segs.length);
+    const lists = new Array(nx * ny);
+    segs.forEach((g, k) => {
+      SA[4 * k] = g[0]; SA[4 * k + 1] = g[1]; SA[4 * k + 2] = g[2]; SA[4 * k + 3] = g[3]; SI[k] = g[4];
+      const x0 = Math.floor((Math.min(g[0], g[2]) - M) / G) - ox - 1, x1 = Math.floor((Math.max(g[0], g[2]) + M) / G) - ox + 1;
+      const y0 = Math.floor((Math.min(g[1], g[3]) - M) / G) - oy - 1, y1 = Math.floor((Math.max(g[1], g[3]) + M) / G) - oy + 1;
+      for (let cy = Math.max(0, y0); cy <= Math.min(ny - 1, y1); cy++)
+        for (let cx = Math.max(0, x0); cx <= Math.min(nx - 1, x1); cx++) {
+          const key = cy * nx + cx;
+          (lists[key] || (lists[key] = [])).push(k);
+        }
+    });
+    const near = lists.map((l) => (l ? Int32Array.from(l) : null));
+    track._grids[lineW] = { ox, oy, nx, ny, near, SA, SI };
+    return track._grids[lineW];
+  }
+
+  function simulate(track, P, opts) {
+    opts = opts || {};
+    const record = opts.record !== false;
+    const wantTrace = !!opts.trace;
+    const sin = opts.trig === 'native' ? Math.sin : LM.sin;
+    const cos = opts.trig === 'native' ? Math.cos : LM.cos;
+    const hypot = LM.hypot;
+    const grid = buildGrid(track, P.lineW);
+    const CX = track.centre.x, CY = track.centre.y, CS = track.centre.s, NC = CX.length;
+
+    // ---- parameters
+    const LINE_W = P.lineW, SPACING = P.spacing;
+    const AHEAD = P.ahead !== undefined ? P.ahead : 0.07;
+    const WHEEL_TRACK = P.wheelTrack !== undefined ? P.wheelTrack : 0.13;
+    const VMAX = P.vmax !== undefined ? P.vmax : 0.50;
+    const DEAD = P.dead !== undefined ? P.dead : 60;
+    const TAU = P.tau !== undefined ? P.tau : 0.08;
+    const TAU_BRAKE = 0.02, TAU_COAST = 0.06;
+    const STEP_US = 500;
+    const PRESS_AT = 0.30, PRESS_LEN = 0.15;
+    const VBAT = 7.6;
+    const HIGH = 1, LOW = 0, A1 = 15, A3 = 17, A5 = 19;
+
+    // ---- state
+    let T_US = 0;
+    const pinState = new Int32Array(20), pwmDuty = new Int32Array(20);
+    let rx = 0, ry = 0, th = 0, vl = 0, vr = 0;
+    let nextTrace = 0;
+    let progress = 0, maxDev = 0, devSum = 0, devN = 0;
+    let finished = 0;
+    let failWhy = '';
+    let finishTime = 0;
+    const traceLines = wantTrace ? ['t,x,y,th,L,R,action,vl,vr,running'] : null;
+
+    // cos(th) / sin(th) cache: same value for the same th, so this cannot change any result
+    let cTh = NaN, cC = 1, cS = 0;
+    function trig() {
+      if (th !== cTh || (th === 0 && 1 / th !== 1 / cTh)) { cTh = th; cC = cos(th); cS = sin(th); }
+    }
+
+    function onLine(px, py) {
+      const hw = LINE_W / 2, hw2 = hw * hw;
+      const gx = Math.floor(px / G) - grid.ox, gy = Math.floor(py / G) - grid.oy;
+      if (gx < 0 || gy < 0 || gx >= grid.nx || gy >= grid.ny) return false;   // far from every tape segment
+      const list = grid.near[gy * grid.nx + gx];
+      if (!list) return false;
+      const SA = grid.SA, SI = grid.SI;
+      for (let j = 0; j < list.length; j++) {
+        const k = list[j] * 4;
+        const ax = SA[k], ay = SA[k + 1], bx = SA[k + 2], by = SA[k + 3];
+        if (Math.abs(px - ax) > 0.03 || Math.abs(py - ay) > 0.03) continue;
+        const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+        const t = ((px - ax) * dx + (py - ay) * dy) / L2;
+        if (t >= 0 && t <= 1) {
+          const cx = ax + t * dx - px, cy = ay + t * dy - py;
+          if (cx * cx + cy * cy <= hw2) return true;
+        }
+        if (SI[list[j]]) {   // round join at interior points (butt ends at the ends of each piece)
+          const ex = ax - px, ey = ay - py;
+          if (ex * ex + ey * ey <= hw2) return true;
+        }
+      }
+      return false;
+    }
+
+    let spx = 0, spy = 0;
+    function sensorPos(side) {   // side +1 = left, -1 = right
+      trig();
+      const c = cC, s = cS;
+      spx = rx + AHEAD * c - side * (SPACING / 2) * s;
+      spy = ry + AHEAD * s + side * (SPACING / 2) * c;
+    }
+
+    // ---- Arduino API
+    const serialOut = [], serialT = [];
+    function sOut(str) { if (serialOut.length < 2000) { serialOut.push(str); serialT.push(T_US / 1e6); } }
+    const Serial = {
+      begin() {},
+      print(v, digits) {
+        if (typeof v === 'number' && digits !== undefined) sOut(LM.cfmt(v, digits));
+        else if (typeof v === 'number' && !Number.isInteger(v)) sOut(LM.cfmt(v, 2));
+        else sOut(String(v));
+      },
+      println(v, digits) { if (v !== undefined) this.print(v, digits); sOut('\n'); },
+    };
+    function pinMode() {}
+    function digitalWrite(p, v) { pinState[p] = v; if (p === 3 || p === 11) pwmDuty[p] = v ? 255 : 0; }
+    function analogWrite(p, v) { pwmDuty[p] = v; }
+    function millis() { return Math.floor(T_US / 1000.0); }
+    function analogRead(p) { return p === A5 ? Math.trunc(VBAT / 3.2 * 1023.0 / 5.0) : 0; }
+    function digitalRead(p) {
+      if (p === A1) { sensorPos(+1); return onLine(spx, spy) ? HIGH : LOW; }
+      if (p === A3) { sensorPos(-1); return onLine(spx, spy) ? HIGH : LOW; }
+      if (p === 12) { const t = T_US / 1e6; return (t >= PRESS_AT && t < PRESS_AT + PRESS_LEN) ? LOW : HIGH; }
+      return LOW;
+    }
+
+    let tauOut = 0;
+    function wheelTarget(en, a, b) {
+      const duty = pwmDuty[en];
+      if (pinState[a] !== pinState[b]) {
+        const eff = duty <= DEAD ? 0 : (duty - DEAD) / (255 - DEAD);
+        tauOut = TAU;
+        return (pinState[a] ? 1 : -1) * VMAX * eff;
+      }
+      tauOut = duty > 0 ? TAU_BRAKE : TAU_COAST;
+      return 0;
+    }
+
+    // ---- recording (1 ms frames) - not part of the model
+    let cap = record ? 20000 : 0, nF = 0;
+    let R_ = null;
+    function alloc(n) {
+      const o = {
+        x: new Float64Array(n), y: new Float64Array(n), th: new Float64Array(n),
+        vl: new Float32Array(n), vr: new Float32Array(n), prog: new Float32Array(n), dev: new Float32Array(n),
+        pwmL: new Int16Array(n), pwmR: new Int16Array(n), flags: new Uint8Array(n),
+        action: new Uint8Array(n), mem: new Uint8Array(n), branch: new Uint8Array(n), phase: new Uint8Array(n),
+        junc: new Uint16Array(n), tia: new Uint32Array(n),
+      };
+      if (R_) for (const k in o) o[k].set(R_[k].subarray(0, nF));
+      R_ = o; cap = n;
+    }
+    if (record) alloc(cap);
+    const PHASES = ['WAITING', 'START_DELAY', 'KICK', 'RUNNING', 'STOPPING', 'STOPPED', 'JUNCTION_WAIT'];
+    const probe = { phase: 'WAITING', branch: 0, left: false, right: false, stopReason: '' };
+    const events = [];
+    let lastDev = 0, lastBestI = 0, prevSharp = false, prevAction = -1, prevJunc = 0, prevPhase = '';
+
+    function pwmSigned(en, a, b) {
+      if (pinState[a] !== pinState[b]) return pinState[a] ? pwmDuty[en] : -pwmDuty[en];
+      return 0;
+    }
+
+    function recordFrame() {
+      if (nF >= cap) alloc(cap * 2);
+      const i = nF++;
+      trig();
+      R_.x[i] = rx; R_.y[i] = ry; R_.th[i] = th; R_.vl[i] = vl; R_.vr[i] = vr;
+      R_.prog[i] = progress;
+      // signed deviation (+ = sensor midpoint left of the line), display only
+      const bi = lastBestI, bj = bi + 1 < NC ? bi + 1 : bi, bk = bi + 1 < NC ? bi : bi - 1;
+      const tx = CX[bj] - CX[bk], ty = CY[bj] - CY[bk];
+      const mx = rx + AHEAD * cC, my = ry + AHEAD * cS;
+      const cr = tx * (my - CY[bi]) - ty * (mx - CX[bi]);
+      R_.dev[i] = cr >= 0 ? lastDev : -lastDev;
+      R_.pwmL[i] = pwmSigned(3, 4, 5); R_.pwmR[i] = pwmSigned(11, 6, 7);
+      sensorPos(+1); const gl = onLine(spx, spy);
+      sensorPos(-1); const gr = onLine(spx, spy);
+      const brakeL = pinState[4] === pinState[5] && pwmDuty[3] > 0, brakeR = pinState[6] === pinState[7] && pwmDuty[11] > 0;
+      R_.flags[i] = (gl ? 1 : 0) | (gr ? 2 : 0) | (probe.left ? 4 : 0) | (probe.right ? 8 : 0) |
+        (sk.vars.running ? 16 : 0) | (brakeL ? 32 : 0) | (brakeR ? 64 : 0);
+      const act = sk.vars.action;
+      R_.action[i] = act; R_.mem[i] = sk.vars.lineMemory; R_.branch[i] = sk.vars.running ? probe.branch : 0;
+      R_.phase[i] = PHASES.indexOf(probe.phase);
+      R_.junc[i] = sk.vars.junctionCount;
+      const tia = LF3.usub(millis(), sk.vars.actionSince);
+      R_.tia[i] = Math.min(tia, 4294967295);
+      // events (for the markers on the track)
+      if (sk.vars.running) {
+        const sharp = (act === 1 || act === 2) && tia >= sk.constants.SHARP_AFTER_MS;
+        if (sharp && !(prevSharp && act === prevAction)) events.push({ i, type: 'sharp', x: mx, y: my, dir: act === 1 ? 'left' : 'right' });
+        if ((act === 4 || act === 5) && act !== prevAction) events.push({ i, type: 'search', x: mx, y: my, dir: act === 4 ? 'left' : 'right' });
+        if (sk.vars.junctionCount > prevJunc) events.push({ i, type: 'crossing', x: mx, y: my, n: sk.vars.junctionCount });
+        prevSharp = sharp; prevAction = act; prevJunc = sk.vars.junctionCount;
+      }
+      if (probe.phase === 'STOPPING' && prevPhase !== 'STOPPING') events.push({ i, type: 'stop', x: mx, y: my, reason: probe.stopReason });
+      prevPhase = probe.phase;
+    }
+
+    function checkProgress() {
+      // nearest centre-line point to the sensor midpoint, searched near the current progress
+      trig();
+      const mx = rx + AHEAD * cC, my = ry + AHEAD * cS;
+      let best = 1e9, bestS = progress, bestI = lastBestI;
+      const lo = progress - 0.25, hi = progress + 0.25;
+      // centreS is sorted, so "skip if s < lo || s > hi" keeps one contiguous block: find its start
+      let a = 0, b = NC;
+      while (a < b) { const m = (a + b) >> 1; if (CS[m] < lo) a = m + 1; else b = m; }
+      let e = a;
+      while (e < NC && !(CS[e] > hi)) e++;
+      // Speed-up that cannot change the answer: U = distance to one point of the block is an upper bound
+      // of the minimum.  hypot(dx, dy) >= max(|dx|, |dy|), so a point with max(|dx|,|dy|) > U*(1+1e-9) is
+      // farther than U and can never be the first nearest point; all other points are tested in the same
+      // order with the same strict "<" as the C++ loop, so best / bestS are exactly the C++ values.
+      if (e > a) {
+        const g = (lastBestI >= a && lastBestI < e) ? lastBestI : ((a + e) >> 1);
+        const U = hypot(CX[g] - mx, CY[g] - my) * (1 + 1e-9);
+        for (let i = a; i < e; i++) {
+          const dx = CX[i] - mx, dy = CY[i] - my;
+          if (dx > U || dx < -U || dy > U || dy < -U) continue;
+          const d = hypot(dx, dy);
+          if (d < best) { best = d; bestS = CS[i]; bestI = i; }
+        }
+      }
+      if (bestS > progress) progress = bestS;
+      if (sk.vars.running) {
+        if (best > maxDev) maxDev = best;
+        devSum += best; devN++;
+      }
+      lastDev = best; lastBestI = bestI;
+      const total = CS[NC - 1];
+      if (progress >= total - 0.01) { finished = 1; finishTime = (T_US / 1e6) - sk.vars.runStartedAt / 1000.0; }
+      else if (best > 0.10) { finished = -1; failWhy = 'left the track'; }
+      else if (T_US > 60e6) { finished = -1; failWhy = 'timeout'; }
+      else if (T_US > 2e6 && !sk.vars.running) { finished = -1; failWhy = 'program stopped'; }
+    }
+
+    function advance(us) {
+      for (let done = 0; done < us && !finished; done += STEP_US) {
+        const dt = STEP_US / 1e6;
+        const gl = wheelTarget(3, 4, 5), tl = tauOut;
+        const gr = wheelTarget(11, 6, 7), tr = tauOut;
+        vl += (gl - vl) * dt / tl;
+        vr += (gr - vr) * dt / tr;
+        const v = (vl + vr) / 2, w = (vr - vl) / WHEEL_TRACK;
+        th += w * dt;
+        trig();
+        rx += v * cC * dt;
+        ry += v * cS * dt;
+        T_US += STEP_US;
+        if (T_US >= nextTrace) {
+          nextTrace += 5000;
+          if (wantTrace) {
+            sensorPos(+1); const L = onLine(spx, spy) ? 1 : 0;
+            sensorPos(-1); const Rr = onLine(spx, spy) ? 1 : 0;
+            const f = LM.cfmt;
+            traceLines.push(f(T_US / 1e6, 4) + ',' + f(rx, 5) + ',' + f(ry, 5) + ',' + f(th, 5) + ',' + L + ',' + Rr + ',' +
+              sk.vars.action + ',' + f(vl, 3) + ',' + f(vr, 3) + ',' + (sk.vars.running ? 1 : 0));
+          }
+        }
+        if (T_US % 1000.0 < STEP_US / 2) {
+          checkProgress();
+          if (record) recordFrame();
+        }
+      }
+    }
+    function delay(ms) { advance(ms * 1000.0); }
+
+    const sk = LF3.createLF3({ pinMode, digitalWrite, digitalRead, analogRead, analogWrite, millis, delay, Serial }, P.settings || {}, probe);
+
+    // ---- main()
+    // start pose: sensors straddling the line, at the start of the track
+    th = Math.atan2(CY[1] - CY[0], CX[1] - CX[0]);
+    trig();
+    rx = CX[0] - AHEAD * cC; ry = CY[0] - AHEAD * cS;
+    if (record) { checkProgressDisplayOnly(); recordFrame(); }
+    sk.setup();
+    while (!finished) { sk.loop(); advance(STEP_US); }
+
+    function checkProgressDisplayOnly() { // frame 0: deviation for display, without touching the model state
+      const mx = rx + AHEAD * cC, my = ry + AHEAD * cS; let best = 1e9;
+      for (let i = 0; i < Math.min(NC, 200); i++) { const d = hypot(CX[i] - mx, CY[i] - my); if (d < best) { best = d; lastBestI = i; } }
+      lastDev = best;
+    }
+
+    const total = CS[NC - 1];
+    const meanDev = devN ? 1000 * devSum / devN : 0.0;
+    const f = LM.cfmt;
+    const resultLine = 'RESULT ' + (finished > 0 ? 'FINISHED' : 'FAILED') + ' lap=' + f(finished > 0 ? finishTime : 0.0, 2) + 's mean_dev=' +
+      f(meanDev, 1) + 'mm max_dev=' + f(1000 * maxDev, 1) + 'mm junctions_counted=' + sk.vars.junctionCount + ' progress=' +
+      f(progress, 2) + '/' + f(total, 2) + 'm ' + (finished > 0 ? '' : failWhy);
+
+    const run = {
+      ok: finished > 0, finished, failWhy, stopReason: probe.stopReason || '',
+      lap: finished > 0 ? finishTime : 0, meanDev, maxDev: 1000 * maxDev, junctions: sk.vars.junctionCount,
+      progress, total, resultLine, endT: T_US / 1e6, runStartedAtMs: sk.vars.runStartedAt,
+      serial: serialOut.join(''), serialParts: serialOut, serialTimes: serialT, events, nFrames: nF, constants: sk.constants,
+    };
+    if (record) { for (const k in R_) R_[k] = R_[k].subarray(0, nF); run.frames = R_; }
+    if (wantTrace) run.trace = traceLines.join('\n') + '\n';
+    return run;
+  }
+
+  const api = { simulate, buildGrid, PHASES: ['WAITING', 'START_DELAY', 'KICK', 'RUNNING', 'STOPPING', 'STOPPED', 'JUNCTION_WAIT'] };
+  root.LFWorld = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+/*
+ * app.js - the page: controls, playback, drawing, readouts, history, race, 72-combination test, code view.
+ * All simulation is done by the core files (LFWorld.simulate etc.); this file only shows the recordings.
+ */
+(function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const LM = window.LFMath, PR = window.LFParams, W = window.LFWorld, T = window.LFTrack;
+  const DATA = window.LF_DATA || {};
+  const PH = W.PHASES;
+  const track = T.writeTrack();
+  const TOTAL = track.total;
+
+  // ------------------------------------------------------------------ small helpers
+  const fmt = (v, d) => LM.cfmt(v, d);
+  const texts = new WeakMap();
+  function setText(el, s) { if (texts.get(el) !== s) { texts.set(el, s); el.textContent = s; } }
+  function setHTML(el, s) { if (texts.get(el) !== s) { texts.set(el, s); el.innerHTML = s; } }
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let toastTimer = 0;
+  function toast(msg) {
+    const t = $('#toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+  }
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } return null; }
+  const RUN_COLORS = ['#e4572e', '#1f9e89', '#7a3fd0', '#d99a00', '#2f6fde', '#c2307f', '#5c8a1e', '#8d5a3b'];
+  const CAT_VARS = ['--tr-idle', '--tr-straight', '--tr-gentle', '--tr-sharp', '--tr-cross', '--tr-search', '--tr-idle'];
+  let CAT_COL = [];
+  let SURROUND = '#c9d1d9';
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    CAT_COL = CAT_VARS.map((v) => cs.getPropertyValue(v).trim() || '#888');
+    SURROUND = cs.getPropertyValue('--surround').trim() || '#c9d1d9';
+  }
+
+  // ------------------------------------------------------------------ theme
+  function applyTheme(mode) {
+    if (mode === 'light' || mode === 'dark') document.documentElement.setAttribute('data-theme', mode);
+    else document.documentElement.removeAttribute('data-theme');
+    $$('[data-theme-set]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeSet === mode)));
+    store('lf-theme', mode);
+    readColors(); dirty = true;
+  }
+  $$('[data-theme-set]').forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.themeSet)));
+  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); dirty = true; }); } catch (e) { /* old Safari */ }
+
+  // ------------------------------------------------------------------ controls <-> config
+  const SK = PR.SETTING_KEYS;
+  const rpmEl = $('#rpm');
+  const BUILD = [
+    { id: 'spacing', key: 'spacingCm', dec: 1, unit: 'cm' },
+    { id: 'ahead', key: 'aheadCm', dec: 1, unit: 'cm' },
+    { id: 'track', key: 'trackCm', dec: 1, unit: 'cm' },
+    { id: 'wheel', key: 'wheelMm', dec: 0, unit: 'mm' },
+    { id: 'tau', key: 'tau', dec: 2, unit: 's' },
+    { id: 'dead', key: 'dead', dec: 0, unit: 'PWM' },
+  ];
+  let lineWcm = '2.5';
+
+  function presetMatch(settings) {
+    for (const name of Object.keys(PR.PRESETS)) {
+      const p = PR.presetSettings(name);
+      let same = true;
+      for (const k of SK) {
+        if (k === 'LOST_AFTER_MS') { if (settings[k] !== p[k] && settings[k] !== PR.MEMORY_OFF_LOST_MS) same = false; }
+        else if (settings[k] !== p[k]) same = false;
+      }
+      if (same) return name;
+    }
+    return 'custom';
+  }
+  function getCfg() {
+    const rpm = +rpmEl.value;
+    const build = {};
+    BUILD.forEach((b) => { build[b.key] = Number($('#b-' + b.id).value).toFixed(b.dec); });
+    const settings = {};
+    SK.forEach((k) => { settings[k] = Math.trunc(Number($('#s-' + k).value) || 0); });
+    const memory = $('#memory').checked;
+    if (!memory) settings.LOST_AFTER_MS = PR.MEMORY_OFF_LOST_MS;
+    const vmax = PR.rpmToVmax(rpm, +build.wheelMm);
+    return { rpm, vmax, build, settings, memory, lineWcm, preset: presetMatch(settings) };
+  }
+  function toParams(cfg) {
+    return {
+      lineW: PR.cm(cfg.lineWcm), spacing: PR.cm(cfg.build.spacingCm), ahead: PR.cm(cfg.build.aheadCm),
+      wheelTrack: PR.cm(cfg.build.trackCm), vmax: cfg.vmax, dead: +cfg.build.dead, tau: parseFloat(cfg.build.tau),
+      settings: Object.assign({}, cfg.settings),
+    };
+  }
+  function cfgKey(cfg) { return JSON.stringify([cfg.rpm, cfg.build, cfg.settings, cfg.lineWcm]); }
+  let lastLostMs = 250;
+  function setControls(cfg) {
+    rpmEl.value = cfg.rpm;
+    BUILD.forEach((b) => { $('#b-' + b.id).value = cfg.build[b.key]; });
+    SK.forEach((k) => { $('#s-' + k).value = cfg.settings[k]; });
+    $('#memory').checked = cfg.settings.LOST_AFTER_MS !== PR.MEMORY_OFF_LOST_MS;
+    if (!$('#memory').checked) { $('#s-LOST_AFTER_MS').value = lastLostMs; }
+    lineWcm = cfg.lineWcm;
+    syncControls();
+  }
+  function applyPreset(name) {
+    const p = PR.presetSettings(name);
+    SK.forEach((k) => { if (k !== 'LOST_AFTER_MS' || $('#memory').checked) $('#s-' + k).value = p[k]; });
+    if (!$('#memory').checked) lastLostMs = p.LOST_AFTER_MS;
+    syncControls();
+  }
+  function syncControls() {
+    const cfg = getCfg();
+    setText($('#rpmVal'), String(cfg.rpm));
+    setText($('#vmaxVal'), fmt(cfg.vmax, 3).replace(/0$/, '') + ' m/s');
+    $$('#rpmChips .chip').forEach((c) => c.setAttribute('aria-pressed', String(+c.dataset.rpm === cfg.rpm)));
+    BUILD.forEach((b) => setText($('#o-' + b.id), cfg.build[b.key] + ' ' + b.unit));
+    $('#preset').value = cfg.preset;
+    const mem = $('#memory').checked;
+    $('#s-LOST_AFTER_MS').disabled = !mem;
+    $$('#lineW button').forEach((bt) => bt.setAttribute('aria-pressed', String(bt.dataset.w === lineWcm)));
+    update72Desc();
+    if (!player.entries.length) dirty = true;
+  }
+  rpmEl.addEventListener('input', syncControls);
+  $$('#rpmChips .chip').forEach((c) => c.addEventListener('click', () => { rpmEl.value = c.dataset.rpm; syncControls(); }));
+  $('#preset').addEventListener('change', (e) => { if (e.target.value !== 'custom') applyPreset(e.target.value); else syncControls(); });
+  SK.forEach((k) => $('#s-' + k).addEventListener('input', syncControls));
+  $('#memory').addEventListener('change', () => {
+    const el = $('#s-LOST_AFTER_MS');
+    if (!$('#memory').checked) { lastLostMs = +el.value || 250; el.value = PR.MEMORY_OFF_LOST_MS; }
+    else { el.value = lastLostMs; }
+    syncControls();
+  });
+  BUILD.forEach((b) => $('#b-' + b.id).addEventListener('input', syncControls));
+  $('#resetBuild').addEventListener('click', () => {
+    const d = PR.DEFAULT_BUILD;
+    $('#b-spacing').value = d.spacingCm; $('#b-ahead').value = d.aheadCm; $('#b-track').value = d.wheelTrackCm;
+    $('#b-wheel').value = d.wheelMm; $('#b-tau').value = d.tau; $('#b-dead').value = d.dead;
+    syncControls();
+  });
+  $$('#lineW button').forEach((bt) => bt.addEventListener('click', () => { lineWcm = bt.dataset.w; syncControls(); }));
+
+  // ------------------------------------------------------------------ labels
+  function programLabel(cfg) {
+    const s = cfg.settings;
+    let base = cfg.preset !== 'custom' ? PR.PRESETS[cfg.preset].label.replace(' (for 300 RPM motors)', '')
+      : 'Custom ' + [s.SPEED_STRAIGHT, s.SPEED_CROSSING, s.TURN_OUTER, s.TURN_INNER_SOFT, s.TURN_INNER_SHARP].join('/');
+    const extra = [];
+    if (s.SHARP_AFTER_MS !== 30) extra.push('SHARP ' + s.SHARP_AFTER_MS);
+    if (s.LOST_AFTER_MS === PR.MEMORY_OFF_LOST_MS) extra.push('memory off');
+    else if (s.LOST_AFTER_MS !== 250) extra.push('LOST ' + s.LOST_AFTER_MS);
+    if (s.SEARCH_GIVE_UP_MS !== 2000) extra.push('GIVE_UP ' + s.SEARCH_GIVE_UP_MS);
+    return base + (extra.length ? ', ' + extra.join(', ') : '');
+  }
+  function buildLabel(cfg) {
+    const b = cfg.build;
+    return `${b.spacingCm}/${b.aheadCm}/${b.trackCm} cm, ${b.wheelMm} mm, τ ${b.tau}, dead ${b.dead}`;
+  }
+  const BUILD_HELP = 'sensor spacing / sensors ahead / wheel spacing, wheel diameter, motor response time, dead zone';
+
+  // ------------------------------------------------------------------ runs and history
+  const history = [];
+  let nextId = 1;
+  function simulateEntry(cfg, opts) {
+    const params = toParams(cfg);
+    const run = W.simulate(track, params, { record: true });
+    const e = { id: nextId++, cfg, params, run, ticked: false, color: null, from: (opts && opts.from) || '' };
+    e.color = RUN_COLORS[(e.id - 1) % RUN_COLORS.length];
+    prepare(e);
+    return e;
+  }
+  function ensureFrames(e) {
+    if (!e.run || !e.run.frames) { e.run = W.simulate(track, e.params, { record: true }); prepare(e); }
+    return e;
+  }
+  function trimMemory() {   // keep recordings of at most 24 runs; others are recomputed (deterministic) when needed
+    const withFrames = history.filter((e) => e.run && e.run.frames);
+    if (withFrames.length <= 24) return;
+    const inUse = new Set(player.entries.concat(history.filter((h) => h.ticked)));
+    for (const e of withFrames) {
+      if (withFrames.length <= 24) break;
+      if (inUse.has(e)) continue;
+      e.run = Object.assign({}, e.run, { frames: null }); e.mx = e.my = e.cat = null;
+      withFrames.splice(withFrames.indexOf(e), 1);
+    }
+  }
+  function prepare(e) {
+    const F = e.run.frames, n = F.x.length, a = e.params.ahead, sharpMs = e.run.constants.SHARP_AFTER_MS;
+    e.mx = new Float32Array(n); e.my = new Float32Array(n); e.cat = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      e.mx[i] = F.x[i] + a * Math.cos(F.th[i]); e.my[i] = F.y[i] + a * Math.sin(F.th[i]);
+      e.cat[i] = category(F, i, sharpMs);
+    }
+    // serial monitor lines with time stamps
+    const lines = []; let cur = '', t0 = null;
+    e.run.serialParts.forEach((p, k) => {
+      let rest = p;
+      for (;;) {
+        if (t0 === null) t0 = e.run.serialTimes[k];
+        const nl = rest.indexOf('\n');
+        if (nl < 0) { cur += rest; break; }
+        cur += rest.slice(0, nl); lines.push({ t: t0, s: cur }); cur = ''; t0 = null;
+        rest = rest.slice(nl + 1);
+        if (!rest) break;
+      }
+    });
+    if (cur) lines.push({ t: t0 || 0, s: cur });
+    e.serialLines = lines;
+  }
+  function category(F, i, sharpMs) {
+    const ph = PH[F.phase[i]];
+    if (!(F.flags[i] & 16)) return (ph === 'STOPPING' || ph === 'STOPPED') ? 6 : 0;
+    if (ph === 'STOPPING') return 6;
+    const a = F.action[i];
+    if (a === 0) return 1;
+    if (a === 1 || a === 2) return F.tia[i] >= sharpMs ? 3 : 2;
+    if (a === 3) return 4;
+    return 5;
+  }
+  function resultShort(e) {
+    const r = e.run;
+    if (r.ok) return 'FINISHED';
+    return 'FAILED: ' + failText(r);
+  }
+  function failText(r) {
+    if (r.failWhy === 'program stopped') {
+      if (/line lost/.test(r.stopReason)) return 'program stopped: line lost';
+      if (/lifted/.test(r.stopReason)) return 'program stopped: both sensors black for 1 s';
+      return 'program stopped' + (r.stopReason ? ': ' + r.stopReason : '');
+    }
+    return r.failWhy;
+  }
+  function addToHistory(e) { history.push(e); trimMemory(); renderHistory(); }
+
+  // ------------------------------------------------------------------ player
+  const player = { entries: [], t: 0, playing: false, speed: 1, race: false, last: 0 };
+  let dirty = true;
+  function duration() { return player.entries.reduce((m, e) => Math.max(m, e.run.nFrames - 1), 0); }
+  function load(entries, race) {
+    entries.forEach(ensureFrames);
+    player.entries = entries; player.race = !!race; player.t = 0; player.playing = false;
+    const d = duration();
+    const sc = $('#scrub'); sc.max = d; sc.value = 0;
+    renderTicks(); renderHistory(); renderNowShowing(); renderSerial(true);
+    lastResultShown = null;
+    $('#raceBox').hidden = !race;
+    dirty = true;
+  }
+  function play() {
+    if (!player.entries.length) return;
+    if (player.t >= duration()) player.t = 0;
+    player.playing = true; player.last = performance.now(); renderPauseBtn();
+  }
+  function pause() { player.playing = false; renderPauseBtn(); }
+  function renderPauseBtn() { $('#btnPause').textContent = player.playing ? 'Pause' : (player.t > 0 && player.t < duration() ? 'Resume' : 'Play'); }
+  function renderNowShowing() {
+    const el = $('#nowShowing');
+    if (!player.entries.length) { el.innerHTML = 'No run loaded'; return; }
+    if (player.race) {
+      el.innerHTML = '<b>Race:</b> ' + player.entries.map((e) => `<span style="color:${e.color}">&#9632;</span> #${e.id} ${e.cfg.rpm} RPM ${esc(programLabel(e.cfg))}`).join(' &nbsp;vs&nbsp; ');
+    } else {
+      const e = player.entries[0];
+      el.title = el.textContent;
+      el.innerHTML = `<b>Run #${e.id}</b> &middot; ${e.cfg.rpm} RPM (${fmt(e.cfg.vmax, 3).replace(/0$/, '')} m/s) &middot; ${esc(programLabel(e.cfg))} &middot; ${esc(buildLabel(e.cfg))} &middot; ${e.cfg.lineWcm} cm line` + (e.from ? ' &middot; ' + esc(e.from) : '');
+    }
+  }
+  function renderTicks() {
+    const box = $('#ticks'); box.innerHTML = '';
+    if (!player.entries.length) return;
+    const e = player.entries[0], d = Math.max(1, duration());
+    const col = { crossing: 'var(--tr-cross)', search: 'var(--tr-search)', stop: 'var(--bad)' };
+    for (const ev of e.run.events) {
+      if (!col[ev.type]) continue;
+      const s = document.createElement('span'); s.style.left = (100 * ev.i / d) + '%'; s.style.background = col[ev.type];
+      s.title = ev.type; box.appendChild(s);
+    }
+    const s = document.createElement('span'); s.style.left = (100 * (e.run.nFrames - 1) / d) + '%';
+    s.style.background = e.run.ok ? 'var(--ok)' : 'var(--bad)'; box.appendChild(s);
+  }
+
+  $('#btnStart').addEventListener('click', startRun);
+  $('#btnPause').addEventListener('click', () => { if (player.playing) pause(); else play(); });
+  $('#btnRestart').addEventListener('click', () => { player.t = 0; renderSerial(true); lastResultShown = null; play(); dirty = true; });
+  $$('#speeds button').forEach((b) => b.addEventListener('click', () => {
+    player.speed = +b.dataset.speed; $$('#speeds button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    player.last = performance.now();
+  }));
+  $('#scrub').addEventListener('input', (ev) => { pause(); player.t = +ev.target.value; renderSerial(true); dirty = true; });
+  document.addEventListener('keydown', (ev) => {
+    const tag = (ev.target && ev.target.tagName) || '';
+    if (tag === 'INPUT' && ev.target.type !== 'range' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (ev.code === 'Space') { ev.preventDefault(); if (player.playing) pause(); else play(); }
+    else if (ev.code === 'ArrowRight' || ev.code === 'ArrowLeft') {
+      if (tag === 'INPUT') return;
+      ev.preventDefault(); pause();
+      player.t = Math.max(0, Math.min(duration(), Math.floor(player.t) + (ev.code === 'ArrowRight' ? 1 : -1) * (ev.shiftKey ? 100 : 5)));
+      renderSerial(true); dirty = true;
+    }
+  });
+
+  function startRun() {
+    const cfg = getCfg();
+    const key = cfgKey(cfg);
+    const same = history.find((h) => cfgKey(h.cfg) === key);
+    if (same) {
+      toast(`Same settings as run #${same.id}: the simulation is exact, so it gives the same run. Replaying it.`);
+      load([same]); play(); return;
+    }
+    $('#busy').hidden = false;
+    $('#btnStart').disabled = true;
+    setTimeout(() => {
+      try {
+        const e = simulateEntry(cfg);
+        addToHistory(e); load([e]); play();
+      } catch (err) { toast('Could not run: ' + err.message); console.error(err); }
+      $('#busy').hidden = true; $('#btnStart').disabled = false;
+    }, 30);
+  }
+
+  // ------------------------------------------------------------------ camera
+  const cv = $('#cv'), board = $('#board');
+  const ctx = cv.getContext('2d');
+  let CW = 0, CH = 0, DPR = 1;
+  const cam = { mode: 'whole', cx: 0, cy: 0, scale: 100, win: 0.40 };
+  let bbox = null;
+  (function () {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const s of track.strokes) for (let i = 0; i < s.n; i++) { x0 = Math.min(x0, s.x[i]); x1 = Math.max(x1, s.x[i]); y0 = Math.min(y0, s.y[i]); y1 = Math.max(y1, s.y[i]); }
+    bbox = { x0: x0 - 0.16, y0: y0 - 0.14, x1: x1 + 0.12, y1: y1 + 0.12 };
+  })();
+  function fitWhole() {
+    const pad = 16;
+    // leave the legend's strip free when the board is wide enough
+    const lg = $('#legend'); let lw = 0;
+    if (lg && lg.open) { lw = lg.getBoundingClientRect().width + 12; if (CW - lw < CH * 0.9) lw = 0; }
+    const aw = CW - lw;
+    const s = Math.min((aw - 2 * pad) / (bbox.x1 - bbox.x0), (CH - 2 * pad) / (bbox.y1 - bbox.y0));
+    cam.scale = Math.max(10, s);
+    cam.cx = (bbox.x0 + bbox.x1) / 2 + (lw / 2) / cam.scale; cam.cy = (bbox.y0 + bbox.y1) / 2;
+  }
+  function setCamMode(m) {
+    cam.mode = m;
+    $('#camWhole').setAttribute('aria-pressed', String(m === 'whole'));
+    $('#camFollow').setAttribute('aria-pressed', String(m === 'follow'));
+    dirty = true;
+  }
+  $('#camWhole').addEventListener('click', () => setCamMode('whole'));
+  $('#camFollow').addEventListener('click', () => { cam.win = 0.40; setCamMode('follow'); });
+  function zoomAt(f, sx, sy) {
+    if (cam.mode === 'follow') { cam.win = Math.max(0.08, Math.min(3, cam.win / f)); dirty = true; return; }
+    const wx = cam.cx + (sx - CW / 2) / cam.scale, wy = cam.cy - (sy - CH / 2) / cam.scale;
+    cam.scale = Math.max(20, Math.min(20000, cam.scale * f));
+    cam.cx = wx - (sx - CW / 2) / cam.scale; cam.cy = wy + (sy - CH / 2) / cam.scale;
+    setCamMode('free');
+  }
+  $('#zoomIn').addEventListener('click', () => zoomAt(1.4, CW / 2, CH / 2));
+  $('#zoomOut').addEventListener('click', () => zoomAt(1 / 1.4, CW / 2, CH / 2));
+  cv.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    const r = cv.getBoundingClientRect();
+    zoomAt(Math.exp(-ev.deltaY * (ev.deltaMode === 1 ? 0.05 : 0.0018)), ev.clientX - r.left, ev.clientY - r.top);
+  }, { passive: false });
+  let drag = null;
+  cv.addEventListener('pointerdown', (ev) => {
+    drag = { x: ev.clientX, y: ev.clientY, cx: cam.cx, cy: cam.cy, moved: false };
+    cv.setPointerCapture(ev.pointerId); cv.classList.add('dragging');
+  });
+  cv.addEventListener('pointermove', (ev) => {
+    if (!drag) return;
+    const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 3) return;
+    if (!drag.moved) { drag.moved = true; if (cam.mode !== 'free') { drag.cx = cam.cx; drag.cy = cam.cy; setCamMode('free'); } }
+    cam.cx = drag.cx - dx / cam.scale; cam.cy = drag.cy + dy / cam.scale; dirty = true;
+  });
+  const endDrag = () => { drag = null; cv.classList.remove('dragging'); };
+  cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+  cv.addEventListener('dblclick', () => setCamMode('whole'));
+  function resize() {
+    const r = board.getBoundingClientRect();
+    DPR = window.devicePixelRatio || 1;
+    CW = Math.max(50, r.width); CH = Math.max(50, r.height);
+    cv.width = Math.round(CW * DPR); cv.height = Math.round(CH * DPR);
+    dirty = true;
+  }
+  try { new ResizeObserver(resize).observe(board); } catch (e) { window.addEventListener('resize', resize); }
+
+  // ------------------------------------------------------------------ drawing
+  const finishPose = (function () {
+    const CS = track.centre.s; let k = 0;
+    while (k < CS.length - 1 && CS[k] < TOTAL - 0.01) k++;
+    const x = track.centre.x, y = track.centre.y;
+    return { x: x[k], y: y[k], h: Math.atan2(y[k] - y[k - 1], x[k] - x[k - 1]) };
+  })();
+  const labels = (function () {
+    const f = track.features;
+    const ch = f.crossingHeading;
+    return [
+      { t: 'START', x: f.start[0] - 0.02, y: f.start[1] - 0.075 },
+      { t: 'CROSSING', x: f.crossing[0] + Math.cos(ch + Math.PI / 2) * 0.24, y: f.crossing[1] + Math.sin(ch + Math.PI / 2) * 0.24 },
+      { t: 'GAP 5 cm', x: (f.gap[0] + f.gapEnd[0]) / 2, y: (f.gap[1] + f.gapEnd[1]) / 2 + 0.055 },
+      { t: '90° CORNER', x: f.corner[0] + 0.105, y: f.corner[1] - 0.035 },
+      { t: 'FINISH', x: f.end[0] + 0.07, y: f.end[1] - 0.05 },
+    ];
+  })();
+
+  function S(x, y) { return [(x - cam.cx) * cam.scale + CW / 2, CH / 2 - (y - cam.cy) * cam.scale]; }
+  function worldTransform() {
+    const s = cam.scale * DPR;
+    ctx.setTransform(s, 0, 0, -s, DPR * (CW / 2 - cam.cx * cam.scale), DPR * (CH / 2 + cam.cy * cam.scale));
+  }
+  function screenTransform() { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+  const px = (n) => n / cam.scale;   // n screen pixels in metres
+
+  function draw() {
+    if (!CW) return;
+    const entries = player.entries, prim = entries[0];
+    if (cam.mode === 'whole') fitWhole();
+    else if (cam.mode === 'follow' && prim) {
+      const i = frameIndex(prim), F = prim.run.frames, a = prim.params.ahead / 2;
+      cam.cx = F.x[i] + a * Math.cos(F.th[i]); cam.cy = F.y[i] + a * Math.sin(F.th[i]);
+      cam.scale = Math.min(CW, CH) / cam.win;
+    }
+    screenTransform();
+    ctx.fillStyle = SURROUND; ctx.fillRect(0, 0, CW, CH);
+    worldTransform();
+    // floor
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0);
+    // 10 cm grid
+    ctx.strokeStyle = '#edf0f3'; ctx.lineWidth = px(1);
+    ctx.beginPath();
+    for (let x = Math.ceil(bbox.x0 * 10) / 10; x <= bbox.x1; x += 0.1) { ctx.moveTo(x, bbox.y0); ctx.lineTo(x, bbox.y1); }
+    for (let y = Math.ceil(bbox.y0 * 10) / 10; y <= bbox.y1; y += 0.1) { ctx.moveTo(bbox.x0, y); ctx.lineTo(bbox.x1, y); }
+    ctx.stroke();
+    // tape: butt ends + round joins = exactly the onLine() geometry
+    const lw = prim ? prim.params.lineW : PR.cm(lineWcm);
+    ctx.strokeStyle = '#141414'; ctx.lineWidth = lw; ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
+    for (const s of track.strokes) {
+      ctx.beginPath(); ctx.moveTo(s.x[0], s.y[0]);
+      for (let i = 1; i < s.n; i++) ctx.lineTo(s.x[i], s.y[i]);
+      ctx.stroke();
+    }
+    drawFinish(lw);
+    // overlay trails of ticked runs
+    if (!player.race) {
+      for (const h of history) {
+        if (!h.ticked || h === prim) continue;
+        ensureFrames(h);
+        drawTrailMono(h, h.run.nFrames - 1, h.color, 0.85, 2);
+      }
+    }
+    // trails being played
+    if (player.race) entries.forEach((e) => drawTrailMono(e, frameIndex(e), e.color, 1, 2.5));
+    else if (prim) drawTrailCat(prim, frameIndex(prim));
+    // event markers
+    if (prim) drawEvents(prim, frameIndex(prim));
+    // robots
+    if (player.race) for (let k = entries.length - 1; k >= 0; k--) drawRobot(entries[k], frameIndex(entries[k]), entries[k].color, k === 0);
+    else if (prim) drawRobot(prim, frameIndex(prim), null, true);
+    else drawGhostRobot();
+    // labels + scale bar (screen space)
+    screenTransform();
+    drawLabels();
+    drawScaleBar();
+    if (prim) drawEndMarker(prim);
+  }
+  function frameIndex(e) { return Math.max(0, Math.min(e.run.nFrames - 1, Math.floor(player.t))); }
+  function drawFinish(lw) {
+    const { x, y, h } = finishPose;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(h);
+    const half = 0.035, sq = 0.005;
+    for (let k = 0; k < 14; k++) for (let j = 0; j < 2; j++) {
+      ctx.fillStyle = (k + j) % 2 ? '#141414' : '#ffffff';
+      ctx.fillRect(j * sq - sq, -half + k * sq, sq, sq);
+    }
+    ctx.strokeStyle = '#141414'; ctx.lineWidth = px(1); ctx.strokeRect(-sq, -half, 2 * sq, 14 * sq);
+    ctx.restore();
+  }
+  function drawTrailCat(e, upto) {
+    const step = cam.scale > 1500 ? 1 : 2;
+    ctx.lineWidth = px(2.6); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    let i = 0;
+    while (i < upto) {
+      const c = e.cat[i];
+      let j = i;
+      while (j < upto && e.cat[j] === c) j += 1;
+      ctx.strokeStyle = CAT_COL[c]; ctx.beginPath(); ctx.moveTo(e.mx[i], e.my[i]);
+      for (let k = i + step; k < j; k += step) ctx.lineTo(e.mx[k], e.my[k]);
+      ctx.lineTo(e.mx[j], e.my[j]);
+      ctx.stroke();
+      i = j;
+    }
+  }
+  function drawTrailMono(e, upto, col, alpha, w) {
+    ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = px(w); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(e.mx[0], e.my[0]);
+    const step = cam.scale > 1500 ? 1 : 3;
+    for (let k = step; k < upto; k += step) ctx.lineTo(e.mx[k], e.my[k]);
+    ctx.lineTo(e.mx[upto], e.my[upto]);
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  function drawEvents(e, upto) {
+    screenTransform();
+    const big = cam.scale > 900;
+    let lastTag = null;   // label only sharp turns that are at least 12 cm apart
+    ctx.font = '600 10.5px ' + getComputedStyle(document.body).fontFamily;
+    for (const ev of e.run.events) {
+      if (ev.i > upto) break;
+      const [sx, sy] = S(ev.x, ev.y);
+      if (sx < -40 || sy < -40 || sx > CW + 40 || sy > CH + 40) continue;
+      if (ev.type === 'sharp') {
+        ctx.fillStyle = CAT_COL[3]; ctx.beginPath(); ctx.moveTo(sx, sy - 5); ctx.lineTo(sx + 4.5, sy + 3.5); ctx.lineTo(sx - 4.5, sy + 3.5); ctx.closePath(); ctx.fill();
+        if (big && (!lastTag || Math.hypot(ev.x - lastTag.x, ev.y - lastTag.y) > 0.12)) { tag(sx + 8, sy - 10, 'sharp turn ' + ev.dir, CAT_COL[3]); lastTag = ev; }
+      } else if (ev.type === 'search') {
+        disc(sx, sy, 8, CAT_COL[5], '?');
+        tag(sx + 11, sy - 11, 'line lost → searching ' + ev.dir, CAT_COL[5]);
+      } else if (ev.type === 'crossing') {
+        disc(sx, sy, 8, CAT_COL[4], '#');
+        tag(sx + 11, sy + 12, 'crossing ' + ev.n + ' counted', CAT_COL[4]);
+      } else if (ev.type === 'stop') {
+        disc(sx, sy, 8, '#c33129', '■');
+        tag(sx + 11, sy - 11, 'program stops: ' + ev.reason, '#c33129');
+      }
+    }
+    worldTransform();
+  }
+  function disc(x, y, r, col, ch) {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ch, x, y + 0.5);
+  }
+  function tag(x, y, text, col) {
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(text).width + 10;
+    ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.strokeStyle = col; ctx.lineWidth = 1;
+    roundRect(x, y - 8, w, 16, 4); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#1b232c'; ctx.fillText(text, x + 5, y + 0.5);
+  }
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+  }
+  function drawLabels() {
+    ctx.font = '700 10.5px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const l of labels) {
+      const [x, y] = S(l.x, l.y);
+      const w = ctx.measureText(l.t).width + 12;
+      ctx.fillStyle = '#1b232c'; roundRect(x - w / 2, y - 9, w, 18, 4); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.fillText(l.t, x, y + 0.5);
+    }
+  }
+  function drawScaleBar() {
+    const len = 0.10 * cam.scale;
+    let L = 0.10, lab = '10 cm';
+    if (len > CW * 0.4) { L = 0.01; lab = '1 cm'; }
+    const w = L * cam.scale, x = 14, y = CH - 18;
+    ctx.font = '600 10.5px ' + getComputedStyle(document.body).fontFamily;
+    const bw = Math.max(w + 12, ctx.measureText(lab).width + 12);
+    ctx.fillStyle = 'rgba(255,255,255,.9)'; roundRect(x - 6, y - 18, bw, 26, 4); ctx.fill();
+    ctx.strokeStyle = '#1b232c'; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(x, y - 4); ctx.lineTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y - 4); ctx.stroke();
+    ctx.fillStyle = '#1b232c'; ctx.font = '600 10.5px ' + getComputedStyle(document.body).fontFamily; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(lab, x + w / 2, y - 6);
+  }
+  function drawEndMarker(e) {
+    if (frameIndex(e) < e.run.nFrames - 1) return;
+    const n = e.run.nFrames - 1;
+    const [x, y] = S(e.mx[n], e.my[n]);
+    ctx.font = '700 11px ' + getComputedStyle(document.body).fontFamily;
+    if (e.run.ok) { disc(x, y, 10, '#17824a', '✓'); tag(x + 14, y + 14, 'FINISHED ' + fmt(e.run.lap, 2) + ' s', '#17824a'); }
+    else { disc(x, y, 10, '#c33129', '✕'); tag(x + 14, y + 14, 'FAILED: ' + failText(e.run), '#c33129'); }
+  }
+
+  function drawRobot(e, i, tint, primary) {
+    const F = e.run.frames, P = e.params;
+    const x = F.x[i], y = F.y[i], th = F.th[i];
+    const A = P.ahead, Wt = P.wheelTrack, Sp = P.spacing, D = PR.mm(e.cfg.build.wheelMm);
+    const wheelW = 0.026;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(th);
+    // chassis plate (translucent so the tape under the robot stays visible)
+    const half = Wt / 2 - wheelW / 2 - 0.004;
+    ctx.fillStyle = tint ? hexA(tint, 0.38) : 'rgba(64, 86, 112, 0.30)';
+    ctx.strokeStyle = tint || '#34495e'; ctx.lineWidth = px(1.4);
+    ctx.beginPath(); ctx.moveTo(-0.05, -half); ctx.lineTo(A - 0.018, -half); ctx.lineTo(A - 0.004, -Math.max(Sp / 2 + 0.012, 0.03));
+    ctx.lineTo(A + 0.008, -Math.max(Sp / 2 + 0.012, 0.03)); ctx.lineTo(A + 0.008, Math.max(Sp / 2 + 0.012, 0.03));
+    ctx.lineTo(A - 0.004, Math.max(Sp / 2 + 0.012, 0.03)); ctx.lineTo(A - 0.018, half); ctx.lineTo(-0.05, half); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    if (primary) {
+      // Arduino UNO (68.6 x 53.4 mm) on the plate
+      ctx.fillStyle = 'rgba(0, 151, 157, 0.30)'; ctx.strokeStyle = 'rgba(0, 120, 125, 0.7)'; ctx.lineWidth = px(1);
+      ctx.fillRect(-0.04, -0.0343, 0.0534, 0.0686); ctx.strokeRect(-0.04, -0.0343, 0.0534, 0.0686);
+    }
+    // castor
+    ctx.fillStyle = '#7d8792'; ctx.beginPath(); ctx.arc(-0.038, 0, 0.008, 0, 2 * Math.PI); ctx.fill();
+    // wheels
+    ctx.fillStyle = '#23272b';
+    for (const side of [1, -1]) ctx.fillRect(-D / 2, side * Wt / 2 - wheelW / 2, D, wheelW);
+    ctx.fillStyle = '#5a6168';
+    for (const side of [1, -1]) ctx.fillRect(-0.004, side * Wt / 2 - wheelW / 2, 0.008, wheelW);
+    // sensor bar
+    ctx.fillStyle = 'rgba(20, 52, 110, 0.85)';
+    ctx.fillRect(A - 0.005, -Sp / 2 - 0.009, 0.010, Sp + 0.018);
+    // wheel speed arrows (green forward, red backward)
+    if (primary) {
+      const off = Wt / 2 + wheelW / 2 + Math.max(0.006, px(6));
+      arrow(0, off, F.vl[i]); arrow(0, -off, F.vr[i]);
+    }
+    // IR sensors: red while over black
+    const fl = F.flags[i];
+    for (const [side, bit] of [[1, 1], [-1, 2]]) {
+      const on = fl & bit;
+      ctx.beginPath(); ctx.arc(A, side * Sp / 2, Math.max(0.0032, px(3.2)), 0, 2 * Math.PI);
+      ctx.fillStyle = on ? '#ff2a17' : '#ffffff'; ctx.fill();
+      ctx.strokeStyle = on ? '#8f1308' : '#2c3e50'; ctx.lineWidth = px(1.3); ctx.stroke();
+    }
+    // sensor midpoint (the trail point)
+    ctx.strokeStyle = tint || '#1b232c'; ctx.lineWidth = px(1.2);
+    ctx.beginPath(); ctx.moveTo(A - 0.004, 0); ctx.lineTo(A + 0.004, 0); ctx.moveTo(A, -0.004); ctx.lineTo(A, 0.004); ctx.stroke();
+    ctx.restore();
+  }
+  function arrow(x0, y0, v) {
+    if (Math.abs(v) < 0.004) return;
+    const L = v * 0.11, col = v > 0 ? '#1f9d47' : '#d9302a';
+    const hl = Math.min(Math.abs(L) * 0.45, px(9)) * Math.sign(L);
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = px(3); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + L - hl * 0.6, y0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0 + L, y0); ctx.lineTo(x0 + L - hl, y0 + Math.abs(hl) * 0.6); ctx.lineTo(x0 + L - hl, y0 - Math.abs(hl) * 0.6); ctx.closePath(); ctx.fill();
+  }
+  function drawGhostRobot() { /* no run loaded: nothing to draw */ }
+  function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+  }
+
+  // ------------------------------------------------------------------ readouts
+  const STATE_NAMES = { 0: 'STRAIGHT', 3: 'CROSSING', 4: 'SEARCH LEFT', 5: 'SEARCH RIGHT' };
+  function stateOf(e, i) {
+    const F = e.run.frames, ph = PH[F.phase[i]], running = F.flags[i] & 16;
+    if (ph === 'WAITING') return { name: 'WAITING FOR START', cat: 0 };
+    if (ph === 'START_DELAY') return { name: 'START DELAY', cat: 0 };
+    if (ph === 'KICK') return { name: 'KICK', cat: 0 };
+    if (ph === 'STOPPING' || ph === 'STOPPED' || !running) return { name: 'STOPPED', cat: 6 };
+    const a = F.action[i], sharp = F.tia[i] >= e.run.constants.SHARP_AFTER_MS;
+    if (a === 1) return { name: sharp ? 'SHARP LEFT' : 'TURN LEFT', cat: sharp ? 3 : 2 };
+    if (a === 2) return { name: sharp ? 'SHARP RIGHT' : 'TURN RIGHT', cat: sharp ? 3 : 2 };
+    return { name: STATE_NAMES[a], cat: e.cat[i] };
+  }
+  const B = (b) => b ? '<span class="kB black">BLACK</span>' : '<span class="kB white">white</span>';
+  const memName = (m) => (m === 1 ? 'LEFT' : m === 2 ? 'RIGHT' : '');
+  function ruleOf(e, i) {
+    const F = e.run.frames, C = e.run.constants, ph = PH[F.phase[i]];
+    const t = i / 1000;
+    if (ph === 'WAITING') return t < 0.30 ? 'Waiting for the START button. The simulator presses START at 0.30 s and holds it for 0.15 s.' : 'START is being pressed (the program reacts to the moment it goes down).';
+    if (ph === 'START_DELAY') return `START pressed: <span class="code">delay(START_DELAY_MS)</span> waits ${C.START_DELAY_MS} ms so you can take your hand away.`;
+    if (ph === 'KICK') return `Kick: <span class="code">drive(255, 255)</span> for KICK_MS = ${C.KICK_MS} ms so both wheels start together.`;
+    if (ph === 'STOPPING') return `<span class="code">stopRun("${esc(e.run.stopReason)}")</span>: brake for 200 ms (L298N inputs LOW, enable 255).`;
+    if (ph === 'STOPPED') return `Stopped: ${esc(e.run.stopReason)}. Motors off, the program waits for START.`;
+    const L = !!(F.flags[i] & 4), R = !!(F.flags[i] & 8), br = F.branch[i];
+    const a = F.action[i], mem = memName(F.mem[i]);
+    const LR = B(L) + ' | ' + B(R) + ' &rarr; ';
+    switch (br) {
+      case 1: return LR + 'drifted right &rarr; <b>turn left</b>, inner wheel stopped (TURN_INNER_SOFT ' + C.TURN_INNER_SOFT + ').';
+      case 2: return LR + `still black after ${C.SHARP_AFTER_MS} ms &rarr; sharp bend &rarr; <b>spin left</b>, inner wheel backwards (${C.TURN_INNER_SHARP}).`;
+      case 3: return LR + 'drifted left &rarr; <b>turn right</b>, inner wheel stopped (TURN_INNER_SOFT ' + C.TURN_INNER_SOFT + ').';
+      case 4: return LR + `still black after ${C.SHARP_AFTER_MS} ms &rarr; sharp bend &rarr; <b>spin right</b>, inner wheel backwards (${C.TURN_INNER_SHARP}).`;
+      case 5:
+        if (a === 4 || a === 5) return LR + `no single sensor on the line yet &rarr; <b>keep searching ${a === 4 ? 'left' : 'right'}</b> (gives up after ${C.SEARCH_GIVE_UP_MS} ms).`;
+        return LR + `both black during a sharp turn &rarr; on top of a corner &rarr; <b>keep spinning ${a === 1 ? 'left' : 'right'}</b>.`;
+      case 6: return LR + `searched for ${C.SEARCH_GIVE_UP_MS} ms without finding the line &rarr; <b>give up and stop</b>.`;
+      case 7: return LR + 'line between the sensors &rarr; <b>straight on</b>' + (mem ? ` (remembering ${mem}: searches if no line for ${C.LOST_AFTER_MS} ms)` : '') + '.';
+      case 8: return LR + `no line for ${C.LOST_AFTER_MS} ms after a sharp turn &rarr; line lost &rarr; <b>spin back ${a === 4 ? 'left' : 'right'}</b> (line memory).`;
+      case 9: return LR + 'crossing line &rarr; <b>keep going straight</b> at SPEED_CROSSING.';
+      case 10: return LR + 'both black for 1 s &rarr; robot lifted? &rarr; <b>stop</b>.';
+      default: return 'Run started: the first sensor reading comes next.';
+    }
+  }
+  function pwmBar(fillEl, valEl, v, brake) {
+    const w = Math.abs(v) / 255 * 50;
+    fillEl.style.left = (v >= 0 ? 50 : 50 - w) + '%'; fillEl.style.width = w + '%';
+    fillEl.style.background = brake ? 'var(--ink-3)' : v >= 0 ? '#1f9d47' : '#d9302a';
+    setText(valEl, brake ? 'BRAKE' : String(v));
+  }
+  let lastResultShown = null;
+  function updateReadouts() {
+    const e = player.entries[0];
+    if (!e) return;
+    const i = frameIndex(e), F = e.run.frames;
+    const t = i / 1000;
+    setText($('#rClock'), fmt(t, 3));
+    const st = e.run.runStartedAtMs;
+    const lap = (F.flags[i] & 16) || i >= e.run.nFrames - 1 ? (i >= e.run.nFrames - 1 && e.run.ok ? e.run.lap : Math.max(0, t - st / 1000)) : null;
+    setText($('#rLap'), lap === null || i * 1 < st ? '–' : fmt(lap, 3));
+    const s = stateOf(e, i);
+    const pill = $('#rState'); setText(pill, s.name); pill.style.background = CAT_COL[s.cat];
+    const gl = !!(F.flags[i] & 1), gr = !!(F.flags[i] & 2);
+    $('#sL').classList.toggle('black', gl); setText($('#sL b'), gl ? 'BLACK' : 'white');
+    $('#sR').classList.toggle('black', gr); setText($('#sR b'), gr ? 'BLACK' : 'white');
+    const rule = ruleOf(e, i);
+    setHTML($('#rRule'), rule); setHTML($('#codeRule'), rule);
+    pwmBar($('#pwmLf'), $('#pwmL'), F.pwmL[i], !!(F.flags[i] & 32));
+    pwmBar($('#pwmRf'), $('#pwmR'), F.pwmR[i], !!(F.flags[i] & 64));
+    setText($('#rWheels'), fmt(F.vl[i], 2) + ' / ' + fmt(F.vr[i], 2) + ' m/s');
+    const dv = F.dev[i] * 1000;
+    setText($('#rDev'), fmt(Math.abs(dv), 1) + ' mm ' + (Math.abs(dv) < 0.05 ? '' : dv > 0 ? 'left' : 'right'));
+    $('#devMark').style.left = (50 + Math.max(-50, Math.min(50, dv / 20 * 50))) + '%';
+    const pct = 100 * F.prog[i] / TOTAL;
+    setText($('#rProg'), fmt(pct, 1) + ' %  (' + fmt(F.prog[i], 2) + ' / ' + fmt(TOTAL, 2) + ' m)');
+    $('#progBar').style.width = Math.min(100, pct) + '%';
+    setText($('#rJunc'), String(F.junc[i]));
+    const mem = memName(F.mem[i]);
+    setText($('#rMem'), mem ? 'remembering: ' + mem : '–');
+    setText($('#tClock'), fmt(t, 3) + ' / ' + fmt((e.run.nFrames - 1) / 1000, 3) + ' s');
+    if (!player.playing || Math.round(player.t) % 7 === 0) $('#scrub').value = Math.floor(player.t);
+    renderPauseBtn();
+    // result card
+    const done = player.t >= duration() - 0.5;
+    const key = done ? player.entries.map((x) => x.id).join(',') : 'pending';
+    if (key !== lastResultShown) { lastResultShown = key; renderResult(done); }
+    renderSerial(false);
+    if (player.race) renderRace();
+    updateCode(e, i);
+  }
+  function renderResult(done) {
+    const box = $('#resultCard'), e = player.entries[0];
+    if (!done) { box.className = 'result pending'; box.innerHTML = 'The result appears when the playback reaches the end of the run.'; return; }
+    const r = e.run;
+    if (r.ok) {
+      box.className = 'result ok';
+      box.innerHTML = `<div class="head">FINISHED</div><div><span class="big">${fmt(r.lap, 2)}</span> s lap time</div>
+        <dl class="kv"><dt>Average off the line</dt><dd>${fmt(r.meanDev, 1)} mm</dd><dt>Maximum off the line</dt><dd>${fmt(r.maxDev, 1)} mm</dd><dt>Crossings counted</dt><dd>${r.junctions}</dd></dl>`;
+    } else {
+      box.className = 'result bad';
+      box.innerHTML = `<div class="head">FAILED</div><div class="why">${esc(failText(r))}</div>
+        <dl class="kv"><dt>At</dt><dd>${fmt(r.endT, 2)} s</dd><dt>Got to</dt><dd>${fmt(r.progress, 2)} of ${fmt(TOTAL, 2)} m</dd><dt>Maximum off the line</dt><dd>${fmt(r.maxDev, 1)} mm</dd></dl>`;
+    }
+  }
+  let serialShownCount = -1;
+  function renderSerial(force) {
+    const e = player.entries[0], box = $('#serial');
+    if (!e) { box.textContent = ''; return; }
+    const t = Math.floor(player.t) / 1000;
+    const lines = e.serialLines.filter((l) => l.t <= t + 1e-9);
+    if (!force && lines.length === serialShownCount) return;
+    serialShownCount = lines.length;
+    box.innerHTML = lines.map((l) => `<span class="t">${fmt(l.t, 3)} &gt; </span>${esc(l.s)}`).join('\n');
+    box.scrollTop = box.scrollHeight;
+  }
+  function renderRace() {
+    const html = player.entries.map((e) => {
+      const i = frameIndex(e), done = i >= e.run.nFrames - 1;
+      const st = done ? (e.run.ok ? `FINISHED ${fmt(e.run.lap, 2)} s` : 'FAILED') : fmt(100 * e.run.frames.prog[i] / TOTAL, 0) + ' %';
+      return `<div class="race-row"><span class="sw" style="background:${e.color}"></span><span class="nm">#${e.id} ${e.cfg.rpm} RPM &middot; ${esc(programLabel(e.cfg))}</span><span class="st" style="color:${done ? (e.run.ok ? 'var(--ok)' : 'var(--bad)') : 'inherit'}">${st}</span></div>`;
+    }).join('');
+    setHTML($('#raceBoard'), html);
+  }
+
+  // ------------------------------------------------------------------ code view
+  const codeLines = (DATA.followLine || '').split('\n');
+  const codeMap = (function () {
+    const idx = (s, from) => { for (let k = from || 0; k < codeLines.length; k++) if (codeLines[k].includes(s)) return k; return -1; };
+    const iL = idx('if (left && !right)'), iR = idx('else if (!left && right)'), iS = idx('else if (searching ||'), iW = idx('else if (!left && !right)');
+    const iX = idx('  else {', iW + 1), iD = idx('if (DEBUG');
+    const iGive = idx('if (timeInAction() >= SEARCH_GIVE_UP_MS)', iS), iSpin = idx('spin(action == ACT_LEFT', iS);
+    const iMem = idx('if (lineMemory != ACT_STRAIGHT', iW), iElse = idx('} else {', iMem), iStr = idx('drive(SPEED_STRAIGHT', iW);
+    const iLift = idx('if (timeInAction() >= LIFTED_STOP_MS)', iX), iCrossDrive = idx('drive(SPEED_CROSSING', iX);
+    const iRead = idx('bool left'), iSharpDef = idx('bool sharpTurn');
+    const r = (a, b) => { const o = []; for (let k = a; k <= b; k++) o.push(k); return o; };
+    const head = r(iRead, iSharpDef);
+    return {
+      head,
+      1: { blk: r(iL, iR - 1), hot: r(iL, iR - 2) }, 2: { blk: r(iL, iR - 1), hot: r(iL, iR - 2) },
+      3: { blk: r(iR, iS - 1), hot: r(iR, iS - 2) }, 4: { blk: r(iR, iS - 1), hot: r(iR, iS - 2) },
+      5: { blk: r(iS, iW - 1), hot: [iS, iSpin] }, 6: { blk: r(iS, iW - 1), hot: r(iGive, iGive + 3) },
+      7: { blk: r(iW, iX - 1), hot: [iW, idx('if (sharpTurn)', iW), idx('setAction(ACT_STRAIGHT)', iW), iMem, iElse, iStr] },
+      8: { blk: r(iW, iX - 1), hot: r(iMem, iElse - 1) },
+      9: { blk: r(iX, iD - 2), hot: [iX, idx('lineMemory = ACT_STRAIGHT', iX), idx('if (setAction(ACT_CROSSING))', iX), iCrossDrive] },
+      10: { blk: r(iX, iD - 2), hot: r(iLift, iLift + 3) },
+    };
+  })();
+  (function renderCode() {
+    const pre = $('#codePre');
+    pre.innerHTML = codeLines.map((l, k) => `<span class="ln" data-k="${k}"><span class="no">${k + 1}</span>${hl(l)}</span>`).join('');
+  })();
+  function hl(line) {
+    let code = line, cm = '';
+    const ci = line.indexOf('//');
+    if (ci >= 0) { code = line.slice(0, ci); cm = line.slice(ci); }
+    let h = esc(code).replace(/\b(if|else|return|bool|void|const|byte|int|unsigned|long)\b/g, '<span class="k">$1</span>')
+      .replace(/\b(-?\d+)\b/g, '<span class="d">$1</span>');
+    return h + (cm ? '<span class="c">' + esc(cm) + '</span>' : '');
+  }
+  let lastCodeKey = '';
+  function updateCode(e, i) {
+    if ($('#p-code').hidden) return;
+    const F = e.run.frames, running = F.flags[i] & 16, br = running && PH[F.phase[i]] === 'RUNNING' ? F.branch[i] : 0;
+    const key = br + ':' + e.id;
+    const vars = `<dt>action</dt><dd>${['ACT_STRAIGHT', 'ACT_LEFT', 'ACT_RIGHT', 'ACT_CROSSING', 'ACT_SEARCH_LEFT', 'ACT_SEARCH_RIGHT'][F.action[i]]}</dd>
+      <dt>timeInAction()</dt><dd>${running ? F.tia[i] + ' ms' : '–'}</dd><dt>lineMemory</dt><dd>${['ACT_STRAIGHT', 'ACT_LEFT', 'ACT_RIGHT'][F.mem[i]] || F.mem[i]}</dd>
+      <dt>junctionCount</dt><dd>${F.junc[i]}</dd><dt>running</dt><dd>${running ? 'true' : 'false'}</dd>`;
+    setHTML($('#codeVars'), vars);
+    if (key === lastCodeKey) return;
+    lastCodeKey = key;
+    const m = codeMap[br];
+    const blk = new Set(m ? m.blk.concat(codeMap.head) : []), hot = new Set(m ? m.hot : []);
+    let first = null;
+    $$('#codePre .ln').forEach((el) => {
+      const k = +el.dataset.k;
+      el.classList.toggle('blk', blk.has(k)); el.classList.toggle('hot', hot.has(k));
+      if (hot.has(k) && first === null) first = el;
+    });
+    if (first) {
+      const body = $('.bench-body');
+      const fr = first.getBoundingClientRect(), br = body.getBoundingClientRect();
+      if (fr.top < br.top + 10 || fr.bottom > br.bottom - 10) body.scrollTop += fr.top - br.top - 60;
+    }
+  }
+
+  // ------------------------------------------------------------------ history table
+  function renderHistory() {
+    const tb = $('#histBody');
+    const shown = new Set(player.entries.map((e) => e.id));
+    tb.innerHTML = history.slice().reverse().map((e) => {
+      const r = e.run;
+      return `<tr data-id="${e.id}" class="${shown.has(e.id) ? 'current' : ''}">
+        <td><input type="checkbox" aria-label="Tick run ${e.id}" ${e.ticked ? 'checked' : ''}><span class="sw" style="background:${e.ticked ? e.color : 'transparent'}"></span></td>
+        <td class="n">${e.id}</td>
+        <td class="n">${e.cfg.rpm} <span class="small">${fmt(e.cfg.vmax, 3).replace(/0$/, '')} m/s</span></td>
+        <td>${esc(programLabel(e.cfg))}</td>
+        <td class="small" title="${BUILD_HELP}">${esc(buildLabel(e.cfg))}</td>
+        <td class="n">${e.cfg.lineWcm} cm</td>
+        <td class="${r.ok ? 'tagok' : 'tagbad'}">${esc(resultShort(e))}</td>
+        <td class="n">${r.ok ? fmt(r.lap, 2) + ' s' : '–'}</td>
+        <td class="n">${fmt(r.maxDev, 1)} mm</td>
+        <td class="n">${fmt(r.meanDev, 1)} mm</td></tr>`;
+    }).join('') || '<tr><td colspan="10" class="small">No runs yet. Press Start run.</td></tr>';
+    const nt = history.filter((h) => h.ticked).length;
+    $('#btnRace').disabled = nt < 2;
+    $('#btnRace').textContent = nt >= 2 ? `Race ticked runs (${Math.min(nt, 4)})` : 'Race ticked runs';
+  }
+  $('#histBody').addEventListener('click', (ev) => {
+    const tr = ev.target.closest('tr[data-id]'); if (!tr) return;
+    const e = history.find((h) => h.id === +tr.dataset.id); if (!e) return;
+    if (ev.target.matches('input[type=checkbox]')) {
+      e.ticked = ev.target.checked;
+      if (e.ticked) ensureFrames(e);
+      renderHistory(); dirty = true; return;
+    }
+    setControls(e.cfg);
+    load([e]); play();
+  });
+  $('#btnRace').addEventListener('click', () => {
+    const ticked = history.filter((h) => h.ticked);
+    if (ticked.length < 2) return;
+    if (ticked.length > 4) toast('Racing the first 4 ticked runs.');
+    load(ticked.slice(0, 4), true); play();
+  });
+  $('#btnUntick').addEventListener('click', () => { history.forEach((h) => { h.ticked = false; }); renderHistory(); dirty = true; });
+  $('#btnClear').addEventListener('click', () => {
+    const keep = player.entries.slice();
+    history.length = 0; keep.forEach((e) => { e.ticked = false; history.push(e); });
+    renderHistory(); toast('History cleared (the run on screen is kept).');
+  });
+
+  // ------------------------------------------------------------------ tabs
+  $$('[role=tab]').forEach((tab) => tab.addEventListener('click', () => {
+    $$('[role=tab]').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
+    $$('[role=tabpanel]').forEach((p) => { p.hidden = p.id !== tab.getAttribute('aria-controls'); });
+    if ($('#app').classList.contains('bench-collapsed')) toggleBench();
+    lastCodeKey = ''; dirty = true;
+    store('lf-tab', tab.id);
+  }));
+  function toggleBench() {
+    const app = $('#app'); const c = app.classList.toggle('bench-collapsed');
+    $('#benchToggle').innerHTML = c ? '&#9652; show' : '&#9662; hide';
+    $('#benchToggle').setAttribute('aria-expanded', String(!c));
+    resize();
+  }
+  $('#benchToggle').addEventListener('click', toggleBench);
+  (function splitter() {
+    const sp = $('#splitter'), app = $('#app');
+    const saved = parseFloat(store('lf-bench-h'));
+    if (saved > 0) app.style.setProperty('--bench-h', saved + 'px');
+    let d = null;
+    sp.addEventListener('pointerdown', (ev) => { d = { y: ev.clientY, h: $('.bench-body').getBoundingClientRect().height }; sp.setPointerCapture(ev.pointerId); });
+    sp.addEventListener('pointermove', (ev) => {
+      if (!d) return;
+      const h = Math.max(110, Math.min(window.innerHeight - 330, d.h - (ev.clientY - d.y)));
+      app.style.setProperty('--bench-h', h + 'px'); resize();
+    });
+    const end = () => { if (d) store('lf-bench-h', String($('.bench-body').getBoundingClientRect().height)); d = null; };
+    sp.addEventListener('pointerup', end); sp.addEventListener('pointercancel', end);
+  })();
+  if (window.innerWidth < 700) $('#legend').open = false;
+  $('#legend').addEventListener('toggle', () => { dirty = true; });
+
+  // ------------------------------------------------------------------ 72 combinations
+  const WORKER_GLUE = `
+    var __track = LFTrack.writeTrack();
+    self.onmessage = function (e) {
+      var j = e.data;
+      if (j.ping) { self.postMessage({ pong: true }); return; }
+      var r = LFWorld.simulate(__track, j.params, { record: false });
+      self.postMessage({ id: j.id, ok: r.ok, lap: r.lap, failWhy: r.failWhy, stopReason: r.stopReason, maxDev: r.maxDev,
+        meanDev: r.meanDev, junctions: r.junctions, progress: r.progress, endT: r.endT });
+    };`;
+  let pool = null;
+  function makePool() {
+    return new Promise((resolve) => {
+      if (pool !== null) return resolve(pool);
+      let url, ws = [];
+      try {
+        const src = $('#lf-core').textContent + '\n' + WORKER_GLUE;
+        url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+        const n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
+        for (let k = 0; k < n; k++) ws.push(new Worker(url));
+      } catch (err) { pool = false; return resolve(false); }
+      let answered = 0, settled = false;
+      const fail = () => { if (settled) return; settled = true; ws.forEach((w) => w.terminate()); pool = false; resolve(false); };
+      const timer = setTimeout(fail, 4000);
+      ws.forEach((w) => {
+        w.onerror = fail;
+        w.onmessage = (m) => { if (m.data && m.data.pong && ++answered === ws.length && !settled) { settled = true; clearTimeout(timer); pool = ws; resolve(ws); } };
+        w.postMessage({ ping: true });
+      });
+    });
+  }
+  function runOnWorkers(ws, jobs, onOne) {
+    return new Promise((resolve, reject) => {
+      const res = new Array(jobs.length); let next = 0, done = 0;
+      const feed = (w) => { if (next < jobs.length) { const k = next++; w.postMessage({ id: k, params: jobs[k] }); } };
+      ws.forEach((w) => {
+        w.onerror = (err) => reject(err);
+        w.onmessage = (m) => { const r = m.data; res[r.id] = r; done++; onOne(r.id, r, done); if (done === jobs.length) resolve(res); else feed(w); };
+      });
+      ws.forEach(feed);
+    });
+  }
+  function runChunked(jobs, onOne) {
+    return new Promise((resolve) => {
+      const res = new Array(jobs.length); let k = 0;
+      const step = () => {
+        const t0 = performance.now();
+        while (k < jobs.length && performance.now() - t0 < 40) {
+          const r = W.simulate(track, jobs[k], { record: false });
+          res[k] = { ok: r.ok, lap: r.lap, failWhy: r.failWhy, stopReason: r.stopReason, maxDev: r.maxDev, meanDev: r.meanDev, junctions: r.junctions, progress: r.progress, endT: r.endT };
+          onOne(k, res[k], k + 1); k++;
+        }
+        if (k < jobs.length) setTimeout(step, 0); else resolve(res);
+      };
+      setTimeout(step, 0);
+    });
+  }
+  function fullSettings(over) {
+    const d = { SPEED_STRAIGHT: 150, SPEED_CROSSING: 130, TURN_OUTER: 170, TURN_INNER_SOFT: 0, TURN_INNER_SHARP: -150, SHARP_AFTER_MS: 30, LOST_AFTER_MS: 250, SEARCH_GIVE_UP_MS: 2000 };
+    return Object.assign(d, over || {});
+  }
+  function refFor(cfg) {
+    const mine = fullSettings(cfg.settings);
+    return (DATA.robust || []).find((r) => r.vmax === cfg.vmax && SK.every((k) => fullSettings(r.settings)[k] === mine[k])) || null;
+  }
+  function update72Desc() {
+    const el = $('#desc72'); if (!el) return;
+    const cfg = getCfg();
+    const ref = refFor(cfg);
+    el.innerHTML = `Uses ${cfg.rpm} RPM (${fmt(cfg.vmax, 3).replace(/0$/, '')} m/s) and <b>${esc(programLabel(cfg))}</b>, with 4.0 cm sensor spacing and every combination of line width 2.0/2.5/3.0 cm &times; sensors ahead 5/7/9 cm &times; TAU 0.05/0.10 s &times; DEAD 40/80 &times; wheel spacing 12/15 cm.` +
+      (ref ? ` The C++ reference result for these settings is known (${ref.cppPass}/72).` : '');
+  }
+  let last72 = null;
+  async function test72() {
+    const cfg = getCfg();
+    const conds = PR.robustConditions();
+    const jobs = conds.map((c) => ({ lineW: c.lineW, spacing: c.spacing, ahead: c.ahead, tau: c.tau, dead: c.dead, wheelTrack: c.wheelTrack, vmax: cfg.vmax, settings: Object.assign({}, cfg.settings) }));
+    const btn = $('#btn72'); btn.disabled = true;
+    const wrap = $('#prog72wrap'), bar = $('#prog72'); wrap.hidden = false; bar.style.width = '0';
+    const t0 = performance.now();
+    render72(cfg, conds, jobs, new Array(72), false);
+    const onOne = (k, r, done) => { bar.style.width = (100 * done / jobs.length) + '%'; partial[k] = r; if (done % 4 === 0 || done === jobs.length) render72(cfg, conds, jobs, partial, false); };
+    const partial = new Array(72);
+    let res = null;
+    const ws = await makePool();
+    if (ws) { try { res = await runOnWorkers(ws, jobs, onOne); } catch (err) { pool = false; res = null; } }
+    if (!res) res = await runChunked(jobs, onOne);
+    const secs = (performance.now() - t0) / 1000;
+    last72 = { cfg, conds, jobs, res };
+    render72(cfg, conds, jobs, res, true, secs, !!ws);
+    wrap.hidden = true; btn.disabled = false;
+  }
+  $('#btn72').addEventListener('click', test72);
+  function shortFail(r) {
+    if (r.failWhy === 'left the track') return 'off';
+    if (r.failWhy === 'timeout') return 'time';
+    if (/line lost/.test(r.stopReason)) return 'lost';
+    return 'stop';
+  }
+  function render72(cfg, conds, jobs, res, final, secs, usedWorkers) {
+    const box = $('#res72');
+    const ref = final ? refFor(cfg) : null;
+    const nOk = res.filter((r) => r && r.ok).length, nDone = res.filter(Boolean).length;
+    const laps = res.filter((r) => r && r.ok).map((r) => r.lap);
+    let mism = 0;
+    if (ref) res.forEach((r, k) => { if (r && r.ok !== ref.perCondition[k].ok) mism++; });
+    let html = `<div class="summary72"><span><span class="big">${nOk} / 72</span> finished</span>`;
+    if (final && laps.length) html += `<span class="small">laps ${fmt(Math.min(...laps), 2)}&ndash;${fmt(Math.max(...laps), 2)} s</span>`;
+    if (!final) html += `<span class="small">${nDone} of 72 done&hellip;</span>`;
+    if (final) html += `<span class="small">${fmt(secs, 1)} s, ${usedWorkers ? 'background workers' : 'on the page'}</span>`;
+    if (ref) html += `<span class="refnote ${mism === 0 && ref.cppPass === nOk ? 'match' : ''}">C++ reference simulator: ${ref.cppPass}/72 ${mism === 0 ? '&middot; every cell agrees' : '&middot; ' + mism + ' cells differ'}</span>`;
+    html += '</div><div class="grid72-wrap"><table class="grid72"><thead><tr><th></th>';
+    for (const tau of PR.ROBUST.tau) for (const dead of PR.ROBUST.dead) for (const wt of PR.ROBUST.wheelTrack)
+      html += `<th class="colh">τ ${fmt(tau, 2)}<br>DEAD ${dead}<br>${fmt(wt * 100, 0)} cm</th>`;
+    html += '</tr></thead><tbody>';
+    let k = 0;
+    for (const lw of PR.ROBUST.lineW) for (const ah of PR.ROBUST.ahead) {
+      html += `<tr><th class="rowh">${fmt(lw * 100, 1)} cm line &middot; ${fmt(ah * 100, 0)} cm ahead</th>`;
+      for (let c = 0; c < 8; c++, k++) {
+        const r = res[k];
+        const cls = r ? (r.ok ? 'ok' : 'bad') : '';
+        const mm = ref && r && r.ok !== ref.perCondition[k].ok ? ' mismatch' : '';
+        html += `<td class="${cls}${mm}" data-k="${k}">${r ? (r.ok ? fmt(r.lap, 1) : shortFail(r)) : ''}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table></div><div class="small" style="margin-top:6px">Green: finished (lap time in s). Red: failed &ndash; off = left the track, lost = line lost and the program stopped, time = timeout. Hover a cell for details, click it to watch that run.</div>';
+    box.innerHTML = html;
+    box._data = { cfg, conds, jobs, res };
+  }
+  const tip = $('#tip');
+  $('#res72').addEventListener('mousemove', (ev) => {
+    const td = ev.target.closest('td[data-k]'); const d = $('#res72')._data;
+    if (!td || !d) { tip.hidden = true; return; }
+    const k = +td.dataset.k, c = d.conds[k], r = d.res[k];
+    tip.innerHTML = `<b>Condition ${k + 1} of 72</b><br>line ${fmt(c.lineW * 100, 1)} cm, sensor spacing 4.0 cm<br>sensors ${fmt(c.ahead * 100, 0)} cm ahead, wheels ${fmt(c.wheelTrack * 100, 0)} cm apart<br>TAU ${c.tau} s, DEAD ${c.dead}<br>` +
+      (r ? (r.ok ? `<b>FINISHED</b> lap ${fmt(r.lap, 2)} s, max ${fmt(r.maxDev, 1)} mm off` : `<b>FAILED</b>: ${esc(failText(r))} at ${fmt(r.endT, 2)} s`) : 'running&hellip;');
+    tip.hidden = false;
+    const x = Math.min(window.innerWidth - 290, ev.clientX + 14), y = Math.min(window.innerHeight - 130, ev.clientY + 14);
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  });
+  $('#res72').addEventListener('mouseleave', () => { tip.hidden = true; });
+  $('#res72').addEventListener('click', (ev) => {
+    const td = ev.target.closest('td[data-k]'); const d = $('#res72')._data;
+    if (!td || !d || !d.res[+td.dataset.k]) return;
+    const k = +td.dataset.k, c = d.conds[k];
+    const cfg = JSON.parse(JSON.stringify(d.cfg));
+    cfg.lineWcm = fmt(c.lineW * 100, 1);
+    cfg.build.spacingCm = '4.0'; cfg.build.aheadCm = fmt(c.ahead * 100, 1); cfg.build.trackCm = fmt(c.wheelTrack * 100, 1);
+    cfg.build.tau = fmt(c.tau, 2); cfg.build.dead = String(c.dead);
+    tip.hidden = true;
+    setControls(cfg);
+    const key = cfgKey(cfg);
+    let e = history.find((h) => cfgKey(h.cfg) === key);
+    if (!e) { e = simulateEntry(cfg, { from: 'combination ' + (k + 1) + ' of 72' }); addToHistory(e); }
+    load([e]); play();
+    toast(`Loaded combination ${k + 1} of 72. The settings on the left now match it.`);
+  });
+
+  // ------------------------------------------------------------------ main loop
+  function frame(now) {
+    if (player.playing) {
+      const dt = Math.min(100, now - player.last); player.last = now;
+      player.t += dt * player.speed;
+      const d = duration();
+      if (player.t >= d) { player.t = d; player.playing = false; }
+      dirty = true;
+    }
+    if (dirty) { dirty = false; draw(); updateReadouts(); }
+    requestAnimationFrame(frame);
+  }
+
+  // ------------------------------------------------------------------ start-up
+  (function init() {
+    const th = store('lf-theme');
+    applyTheme(th === 'light' || th === 'dark' ? th : 'auto');
+    applyPreset('default');
+    resize();
+    const first = simulateEntry(getCfg(), { from: 'the reference run, ready to play' });
+    addToHistory(first);
+    load([first]);
+    renderPauseBtn();
+    const tabId = store('lf-tab');
+    if (tabId && $('#' + tabId)) $('#' + tabId).click();
+    requestAnimationFrame((t) => { player.last = t; frame(t); });
+    window.LFApp = { player, history, getCfg, setControls, test72, startRun, load, duration,
+      seek(t) { pause(); player.t = Math.max(0, Math.min(duration(), t)); renderSerial(true); dirty = true; }, get last72() { return last72; } };
+  })();
+})();
+
+</script>
+</body>
+</html>

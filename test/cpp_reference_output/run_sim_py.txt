@@ -1,0 +1,15 @@
+track length 3.53 m
+line 2.0 cm  sensors 3.5 cm apart  top speed 0.50 m/s -> FINISHED lap=16.67s mean_dev=5.4mm max_dev=8.0mm junctions_counted=1 progress=3.52/3.53m 
+line 2.0 cm  sensors 3.5 cm apart  top speed 0.75 m/s -> FINISHED lap=11.42s mean_dev=5.1mm max_dev=14.9mm junctions_counted=1 progress=3.52/3.53m 
+line 2.0 cm  sensors 4.0 cm apart  top speed 0.50 m/s -> FINISHED lap=16.63s mean_dev=7.3mm max_dev=10.4mm junctions_counted=1 progress=3.52/3.53m 
+line 2.0 cm  sensors 4.0 cm apart  top speed 0.75 m/s -> FINISHED lap=11.30s mean_dev=7.0mm max_dev=18.4mm junctions_counted=1 progress=3.52/3.53m 
+line 2.5 cm  sensors 3.5 cm apart  top speed 0.50 m/s -> FINISHED lap=16.85s mean_dev=3.5mm max_dev=6.8mm junctions_counted=1 progress=3.52/3.53m 
+line 2.5 cm  sensors 3.5 cm apart  top speed 0.75 m/s -> FINISHED lap=11.19s mean_dev=3.5mm max_dev=10.7mm junctions_counted=1 progress=3.52/3.53m 
+line 2.5 cm  sensors 4.0 cm apart  top speed 0.50 m/s -> FINISHED lap=16.74s mean_dev=5.3mm max_dev=7.8mm junctions_counted=1 progress=3.52/3.53m 
+line 2.5 cm  sensors 4.0 cm apart  top speed 0.75 m/s -> FINISHED lap=11.15s mean_dev=5.2mm max_dev=11.2mm junctions_counted=1 progress=3.52/3.53m 
+line 3.0 cm  sensors 3.5 cm apart  top speed 0.50 m/s -> FINISHED lap=17.46s mean_dev=1.9mm max_dev=12.4mm junctions_counted=23 progress=3.52/3.53m 
+line 3.0 cm  sensors 3.5 cm apart  top speed 0.75 m/s -> FINISHED lap=11.58s mean_dev=1.8mm max_dev=9.1mm junctions_counted=16 progress=3.52/3.53m 
+line 3.0 cm  sensors 4.0 cm apart  top speed 0.50 m/s -> FINISHED lap=16.97s mean_dev=3.5mm max_dev=10.8mm junctions_counted=1 progress=3.52/3.53m 
+line 3.0 cm  sensors 4.0 cm apart  top speed 0.75 m/s -> FINISHED lap=11.22s mean_dev=3.3mm max_dev=8.6mm junctions_counted=1 progress=3.52/3.53m 
+REFERENCE RUN (2.5 cm line, 3.8 cm spacing, 200 RPM motors): RESULT FINISHED lap=16.75s mean_dev=4.6mm max_dev=7.0mm junctions_counted=1 progress=3.52/3.53m 
+ALL PASS

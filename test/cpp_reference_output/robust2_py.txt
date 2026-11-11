@@ -1,0 +1,3 @@
+300 RPM, slower settings (125/110/145/-125)    pass 67/72   lap on the reference robot 15.20 s
+200 RPM, faster settings (180/150/200/-170)    pass 64/72   lap on the reference robot 12.64 s
+200 RPM, much faster (210/170/230/-190)        pass 50/72   lap on the reference robot 10.48 s

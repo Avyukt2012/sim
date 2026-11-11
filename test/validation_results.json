@@ -1,0 +1,2370 @@
+{
+ "generated": "2026-11-11T21:02:45.949Z",
+ "checks": [
+  {
+   "name": "Track: JS centre.csv and strokes.csv are byte-identical to run_sim.py output",
+   "ok": true,
+   "detail": "length 3.53 m, 1764 centre points, tape pieces 914/826/151"
+  },
+  {
+   "name": "Track length prints as 3.53 m",
+   "ok": true
+  },
+  {
+   "name": "rpmToVmax(200 RPM, 65 mm) === 0.5 and rpmToVmax(300, 65) === 0.75",
+   "ok": true
+  },
+  {
+   "name": "13 run_sim.py cases: JS RESULT line identical to C++ (lap, mean/max dev, junctions, progress)",
+   "ok": true,
+   "detail": "13/13"
+  },
+  {
+   "name": "13 run_sim.py cases: JS trace (every 5 ms, x/y/heading/sensors/action/wheel speeds) identical text to C++ trace",
+   "ok": true,
+   "detail": "13/13"
+  },
+  {
+   "name": "Reference run trace identical to reference/sim/out/trace.csv written by run_sim.py",
+   "ok": true,
+   "detail": "3618 lines"
+  },
+  {
+   "name": "Reference run, full double precision every 5 ms (correctly rounded sin/cos): max position difference < 1 micrometre",
+   "ok": true,
+   "detail": "3617/3617 samples bit-identical, max |dpos| = 0.00e+0 m, max |dheading| = 0.00e+0 rad"
+  },
+  {
+   "name": "Robustness: Default, line memory on @ 200 RPM - JS pass count equals C++ and every RESULT line is identical",
+   "ok": true,
+   "detail": "C++ 72/72, JS 72/72, identical lines 72/72"
+  },
+  {
+   "name": "Robustness: Default, line memory on @ 300 RPM - JS pass count equals C++ and every RESULT line is identical",
+   "ok": true,
+   "detail": "C++ 56/72, JS 56/72, identical lines 72/72"
+  },
+  {
+   "name": "Robustness: Default, line memory off @ 200 RPM - JS pass count equals C++ and every RESULT line is identical",
+   "ok": true,
+   "detail": "C++ 64/72, JS 64/72, identical lines 72/72"
+  },
+  {
+   "name": "Robustness: Default, line memory off @ 300 RPM - JS pass count equals C++ and every RESULT line is identical",
+   "ok": true,
+   "detail": "C++ 49/72, JS 49/72, identical lines 72/72"
+  },
+  {
+   "name": "Robustness: Slower (125/110/145/-125) @ 300 RPM - JS pass count equals C++ and every RESULT line is identical",
+   "ok": true,
+   "detail": "C++ 67/72, JS 67/72, identical lines 72/72"
+  },
+  {
+   "name": "Robustness: Faster (180/150/200/-170) @ 200 RPM - JS pass count equals C++ and every RESULT line is identical",
+   "ok": true,
+   "detail": "C++ 64/72, JS 64/72, identical lines 72/72"
+  },
+  {
+   "name": "Robustness: Much faster (210/170/230/-190) @ 200 RPM - JS pass count equals C++ and every RESULT line is identical",
+   "ok": true,
+   "detail": "C++ 50/72, JS 50/72, identical lines 72/72"
+  },
+  {
+   "name": "lf_simulator.html contains the exact src/core files that were tested",
+   "ok": true,
+   "detail": "mathlib.js, track.js, lf3_sketch.js, world.js, params.js"
+  }
+ ],
+ "fullPrecision": {
+  "correctlyRounded": {
+   "n": 3617,
+   "bitSame": 3617,
+   "maxPos": 0,
+   "maxTh": 0,
+   "firstDiff": null
+  },
+  "nativeMathSinCos": {
+   "n": 3617,
+   "bitSame": 3617,
+   "maxPos": 0,
+   "maxTh": 0,
+   "firstDiff": null
+  }
+ },
+ "robustness": [
+  {
+   "key": "default_on_200",
+   "label": "Default, line memory on",
+   "rpm": 200,
+   "vmax": 0.5,
+   "settings": {
+    "SHARP_AFTER_MS": 30,
+    "LOST_AFTER_MS": 250
+   },
+   "user": "72/72",
+   "cppPass": 72,
+   "jsPass": 72,
+   "lineSame": 72,
+   "n": 72,
+   "cppLap": "16.74",
+   "jsLap": "16.74",
+   "diffs": [],
+   "perCondition": [
+    {
+     "ok": true,
+     "lap": 15.66
+    },
+    {
+     "ok": true,
+     "lap": 15.49
+    },
+    {
+     "ok": true,
+     "lap": 18.94
+    },
+    {
+     "ok": true,
+     "lap": 19.37
+    },
+    {
+     "ok": true,
+     "lap": 17.4
+    },
+    {
+     "ok": true,
+     "lap": 17.24
+    },
+    {
+     "ok": true,
+     "lap": 19.28
+    },
+    {
+     "ok": true,
+     "lap": 19.71
+    },
+    {
+     "ok": true,
+     "lap": 14.85
+    },
+    {
+     "ok": true,
+     "lap": 15.21
+    },
+    {
+     "ok": true,
+     "lap": 18.67
+    },
+    {
+     "ok": true,
+     "lap": 19.05
+    },
+    {
+     "ok": true,
+     "lap": 15.06
+    },
+    {
+     "ok": true,
+     "lap": 15.45
+    },
+    {
+     "ok": true,
+     "lap": 18.97
+    },
+    {
+     "ok": true,
+     "lap": 19.39
+    },
+    {
+     "ok": true,
+     "lap": 14.62
+    },
+    {
+     "ok": true,
+     "lap": 15.26
+    },
+    {
+     "ok": true,
+     "lap": 18.75
+    },
+    {
+     "ok": true,
+     "lap": 19.22
+    },
+    {
+     "ok": true,
+     "lap": 14.87
+    },
+    {
+     "ok": true,
+     "lap": 15.16
+    },
+    {
+     "ok": true,
+     "lap": 19.19
+    },
+    {
+     "ok": true,
+     "lap": 19.73
+    },
+    {
+     "ok": true,
+     "lap": 15.12
+    },
+    {
+     "ok": true,
+     "lap": 15.57
+    },
+    {
+     "ok": true,
+     "lap": 19.01
+    },
+    {
+     "ok": true,
+     "lap": 19.42
+    },
+    {
+     "ok": true,
+     "lap": 15.77
+    },
+    {
+     "ok": true,
+     "lap": 16.25
+    },
+    {
+     "ok": true,
+     "lap": 19.21
+    },
+    {
+     "ok": true,
+     "lap": 19.64
+    },
+    {
+     "ok": true,
+     "lap": 14.93
+    },
+    {
+     "ok": true,
+     "lap": 15.29
+    },
+    {
+     "ok": true,
+     "lap": 18.74
+    },
+    {
+     "ok": true,
+     "lap": 19.13
+    },
+    {
+     "ok": true,
+     "lap": 15.17
+    },
+    {
+     "ok": true,
+     "lap": 15.52
+    },
+    {
+     "ok": true,
+     "lap": 19.11
+    },
+    {
+     "ok": true,
+     "lap": 19.49
+    },
+    {
+     "ok": true,
+     "lap": 14.93
+    },
+    {
+     "ok": true,
+     "lap": 15.31
+    },
+    {
+     "ok": true,
+     "lap": 19.33
+    },
+    {
+     "ok": true,
+     "lap": 19.26
+    },
+    {
+     "ok": true,
+     "lap": 15.05
+    },
+    {
+     "ok": true,
+     "lap": 15.34
+    },
+    {
+     "ok": true,
+     "lap": 18.95
+    },
+    {
+     "ok": true,
+     "lap": 19.79
+    },
+    {
+     "ok": true,
+     "lap": 15.27
+    },
+    {
+     "ok": true,
+     "lap": 15.65
+    },
+    {
+     "ok": true,
+     "lap": 19.81
+    },
+    {
+     "ok": true,
+     "lap": 19.59
+    },
+    {
+     "ok": true,
+     "lap": 16.64
+    },
+    {
+     "ok": true,
+     "lap": 15.82
+    },
+    {
+     "ok": true,
+     "lap": 19.91
+    },
+    {
+     "ok": true,
+     "lap": 19.82
+    },
+    {
+     "ok": true,
+     "lap": 15.54
+    },
+    {
+     "ok": true,
+     "lap": 15.49
+    },
+    {
+     "ok": true,
+     "lap": 18.94
+    },
+    {
+     "ok": true,
+     "lap": 20.02
+    },
+    {
+     "ok": true,
+     "lap": 15.42
+    },
+    {
+     "ok": true,
+     "lap": 15.78
+    },
+    {
+     "ok": true,
+     "lap": 19.35
+    },
+    {
+     "ok": true,
+     "lap": 19.74
+    },
+    {
+     "ok": true,
+     "lap": 14.76
+    },
+    {
+     "ok": true,
+     "lap": 15.86
+    },
+    {
+     "ok": true,
+     "lap": 18.45
+    },
+    {
+     "ok": true,
+     "lap": 19.42
+    },
+    {
+     "ok": true,
+     "lap": 15.41
+    },
+    {
+     "ok": true,
+     "lap": 15.9
+    },
+    {
+     "ok": true,
+     "lap": 19.53
+    },
+    {
+     "ok": true,
+     "lap": 19.76
+    }
+   ]
+  },
+  {
+   "key": "default_on_300",
+   "label": "Default, line memory on",
+   "rpm": 300,
+   "vmax": 0.75,
+   "settings": {
+    "SHARP_AFTER_MS": 30,
+    "LOST_AFTER_MS": 250
+   },
+   "user": "56/72",
+   "cppPass": 56,
+   "jsPass": 56,
+   "lineSame": 72,
+   "n": 72,
+   "cppLap": "11.15",
+   "jsLap": "11.15",
+   "diffs": [],
+   "perCondition": [
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.64
+    },
+    {
+     "ok": true,
+     "lap": 12.94
+    },
+    {
+     "ok": true,
+     "lap": 12.45
+    },
+    {
+     "ok": true,
+     "lap": 12.71
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.89
+    },
+    {
+     "ok": true,
+     "lap": 10.15
+    },
+    {
+     "ok": true,
+     "lap": 12.41
+    },
+    {
+     "ok": true,
+     "lap": 12.69
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 13.61
+    },
+    {
+     "ok": true,
+     "lap": 13.42
+    },
+    {
+     "ok": true,
+     "lap": 9.72
+    },
+    {
+     "ok": true,
+     "lap": 9.96
+    },
+    {
+     "ok": true,
+     "lap": 12.2
+    },
+    {
+     "ok": true,
+     "lap": 12.69
+    },
+    {
+     "ok": true,
+     "lap": 10.33
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.51
+    },
+    {
+     "ok": true,
+     "lap": 13.14
+    },
+    {
+     "ok": true,
+     "lap": 10.03
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.6
+    },
+    {
+     "ok": true,
+     "lap": 13.73
+    },
+    {
+     "ok": true,
+     "lap": 11.52
+    },
+    {
+     "ok": true,
+     "lap": 12.58
+    },
+    {
+     "ok": true,
+     "lap": 14.67
+    },
+    {
+     "ok": true,
+     "lap": 14.42
+    },
+    {
+     "ok": true,
+     "lap": 9.93
+    },
+    {
+     "ok": true,
+     "lap": 10.15
+    },
+    {
+     "ok": true,
+     "lap": 12.44
+    },
+    {
+     "ok": true,
+     "lap": 12.71
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 13.05
+    },
+    {
+     "ok": true,
+     "lap": 13.94
+    },
+    {
+     "ok": true,
+     "lap": 9.77
+    },
+    {
+     "ok": true,
+     "lap": 10.01
+    },
+    {
+     "ok": true,
+     "lap": 12.25
+    },
+    {
+     "ok": true,
+     "lap": 12.64
+    },
+    {
+     "ok": true,
+     "lap": 10.03
+    },
+    {
+     "ok": true,
+     "lap": 10.48
+    },
+    {
+     "ok": true,
+     "lap": 12.57
+    },
+    {
+     "ok": true,
+     "lap": 12.84
+    },
+    {
+     "ok": true,
+     "lap": 10.09
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.65
+    },
+    {
+     "ok": true,
+     "lap": 12.94
+    },
+    {
+     "ok": true,
+     "lap": 10.65
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.99
+    },
+    {
+     "ok": true,
+     "lap": 10.24
+    },
+    {
+     "ok": true,
+     "lap": 12.52
+    },
+    {
+     "ok": true,
+     "lap": 12.77
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.86
+    },
+    {
+     "ok": true,
+     "lap": 13.76
+    },
+    {
+     "ok": true,
+     "lap": 9.9
+    },
+    {
+     "ok": true,
+     "lap": 10.13
+    },
+    {
+     "ok": true,
+     "lap": 12.39
+    },
+    {
+     "ok": true,
+     "lap": 12.62
+    },
+    {
+     "ok": true,
+     "lap": 10.19
+    },
+    {
+     "ok": true,
+     "lap": 10.4
+    },
+    {
+     "ok": true,
+     "lap": 12.77
+    },
+    {
+     "ok": true,
+     "lap": 13.02
+    }
+   ]
+  },
+  {
+   "key": "default_off_200",
+   "label": "Default, line memory off",
+   "rpm": 200,
+   "vmax": 0.5,
+   "settings": {
+    "SHARP_AFTER_MS": 30,
+    "LOST_AFTER_MS": 99999
+   },
+   "user": "64/72",
+   "cppPass": 64,
+   "jsPass": 64,
+   "lineSame": 72,
+   "n": 72,
+   "cppLap": "16.74",
+   "jsLap": "16.74",
+   "diffs": [],
+   "perCondition": [
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 15.49
+    },
+    {
+     "ok": true,
+     "lap": 18.94
+    },
+    {
+     "ok": true,
+     "lap": 19.37
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 19.28
+    },
+    {
+     "ok": true,
+     "lap": 19.71
+    },
+    {
+     "ok": true,
+     "lap": 14.85
+    },
+    {
+     "ok": true,
+     "lap": 15.21
+    },
+    {
+     "ok": true,
+     "lap": 18.67
+    },
+    {
+     "ok": true,
+     "lap": 19.05
+    },
+    {
+     "ok": true,
+     "lap": 15.06
+    },
+    {
+     "ok": true,
+     "lap": 15.45
+    },
+    {
+     "ok": true,
+     "lap": 18.97
+    },
+    {
+     "ok": true,
+     "lap": 19.39
+    },
+    {
+     "ok": true,
+     "lap": 14.62
+    },
+    {
+     "ok": true,
+     "lap": 14.99
+    },
+    {
+     "ok": true,
+     "lap": 18.36
+    },
+    {
+     "ok": true,
+     "lap": 18.74
+    },
+    {
+     "ok": true,
+     "lap": 14.87
+    },
+    {
+     "ok": true,
+     "lap": 15.16
+    },
+    {
+     "ok": true,
+     "lap": 18.77
+    },
+    {
+     "ok": true,
+     "lap": 19.05
+    },
+    {
+     "ok": true,
+     "lap": 15.12
+    },
+    {
+     "ok": true,
+     "lap": 15.52
+    },
+    {
+     "ok": true,
+     "lap": 19.01
+    },
+    {
+     "ok": true,
+     "lap": 19.42
+    },
+    {
+     "ok": true,
+     "lap": 15.27
+    },
+    {
+     "ok": true,
+     "lap": 15.68
+    },
+    {
+     "ok": true,
+     "lap": 19.21
+    },
+    {
+     "ok": true,
+     "lap": 19.64
+    },
+    {
+     "ok": true,
+     "lap": 14.93
+    },
+    {
+     "ok": true,
+     "lap": 15.29
+    },
+    {
+     "ok": true,
+     "lap": 18.74
+    },
+    {
+     "ok": true,
+     "lap": 19.13
+    },
+    {
+     "ok": true,
+     "lap": 15.17
+    },
+    {
+     "ok": true,
+     "lap": 15.52
+    },
+    {
+     "ok": true,
+     "lap": 19.11
+    },
+    {
+     "ok": true,
+     "lap": 19.49
+    },
+    {
+     "ok": true,
+     "lap": 14.75
+    },
+    {
+     "ok": true,
+     "lap": 15.1
+    },
+    {
+     "ok": true,
+     "lap": 18.5
+    },
+    {
+     "ok": true,
+     "lap": 18.86
+    },
+    {
+     "ok": true,
+     "lap": 15.05
+    },
+    {
+     "ok": true,
+     "lap": 15.34
+    },
+    {
+     "ok": true,
+     "lap": 18.95
+    },
+    {
+     "ok": true,
+     "lap": 19.28
+    },
+    {
+     "ok": true,
+     "lap": 15.27
+    },
+    {
+     "ok": true,
+     "lap": 15.65
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 19.59
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 15.82
+    },
+    {
+     "ok": true,
+     "lap": 19.28
+    },
+    {
+     "ok": true,
+     "lap": 19.82
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 15.49
+    },
+    {
+     "ok": true,
+     "lap": 18.94
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 15.42
+    },
+    {
+     "ok": true,
+     "lap": 15.78
+    },
+    {
+     "ok": true,
+     "lap": 19.35
+    },
+    {
+     "ok": true,
+     "lap": 19.74
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 15.41
+    },
+    {
+     "ok": true,
+     "lap": 18.69
+    },
+    {
+     "ok": true,
+     "lap": 19.14
+    },
+    {
+     "ok": true,
+     "lap": 15.41
+    },
+    {
+     "ok": true,
+     "lap": 15.77
+    },
+    {
+     "ok": true,
+     "lap": 19.25
+    },
+    {
+     "ok": true,
+     "lap": 19.69
+    }
+   ]
+  },
+  {
+   "key": "default_off_300",
+   "label": "Default, line memory off",
+   "rpm": 300,
+   "vmax": 0.75,
+   "settings": {
+    "SHARP_AFTER_MS": 30,
+    "LOST_AFTER_MS": 99999
+   },
+   "user": "49/72",
+   "cppPass": 49,
+   "jsPass": 49,
+   "lineSame": 72,
+   "n": 72,
+   "cppLap": "11.15",
+   "jsLap": "11.15",
+   "diffs": [],
+   "perCondition": [
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.64
+    },
+    {
+     "ok": true,
+     "lap": 12.94
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.89
+    },
+    {
+     "ok": true,
+     "lap": 10.15
+    },
+    {
+     "ok": true,
+     "lap": 12.41
+    },
+    {
+     "ok": true,
+     "lap": 12.69
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.96
+    },
+    {
+     "ok": true,
+     "lap": 9.72
+    },
+    {
+     "ok": true,
+     "lap": 9.96
+    },
+    {
+     "ok": true,
+     "lap": 12.2
+    },
+    {
+     "ok": true,
+     "lap": 12.44
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.51
+    },
+    {
+     "ok": true,
+     "lap": 12.74
+    },
+    {
+     "ok": true,
+     "lap": 10.03
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.6
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 10.36
+    },
+    {
+     "ok": true,
+     "lap": 10.59
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 13.21
+    },
+    {
+     "ok": true,
+     "lap": 9.93
+    },
+    {
+     "ok": true,
+     "lap": 10.15
+    },
+    {
+     "ok": true,
+     "lap": 12.44
+    },
+    {
+     "ok": true,
+     "lap": 12.71
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.71
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.77
+    },
+    {
+     "ok": true,
+     "lap": 10.01
+    },
+    {
+     "ok": true,
+     "lap": 12.25
+    },
+    {
+     "ok": true,
+     "lap": 12.49
+    },
+    {
+     "ok": true,
+     "lap": 10.02
+    },
+    {
+     "ok": true,
+     "lap": 10.27
+    },
+    {
+     "ok": true,
+     "lap": 12.57
+    },
+    {
+     "ok": true,
+     "lap": 12.84
+    },
+    {
+     "ok": true,
+     "lap": 10.09
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.65
+    },
+    {
+     "ok": true,
+     "lap": 12.94
+    },
+    {
+     "ok": true,
+     "lap": 10.39
+    },
+    {
+     "ok": true,
+     "lap": 10.68
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.99
+    },
+    {
+     "ok": true,
+     "lap": 10.24
+    },
+    {
+     "ok": true,
+     "lap": 12.52
+    },
+    {
+     "ok": true,
+     "lap": 12.77
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.86
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.9
+    },
+    {
+     "ok": true,
+     "lap": 10.13
+    },
+    {
+     "ok": true,
+     "lap": 12.39
+    },
+    {
+     "ok": true,
+     "lap": 12.62
+    },
+    {
+     "ok": true,
+     "lap": 10.19
+    },
+    {
+     "ok": true,
+     "lap": 10.4
+    },
+    {
+     "ok": true,
+     "lap": 12.77
+    },
+    {
+     "ok": true,
+     "lap": 13.02
+    }
+   ]
+  },
+  {
+   "key": "slower_300",
+   "label": "Slower (125/110/145/-125)",
+   "rpm": 300,
+   "vmax": 0.75,
+   "settings": {
+    "SHARP_AFTER_MS": 30,
+    "LOST_AFTER_MS": 250,
+    "SPEED_STRAIGHT": 125,
+    "SPEED_CROSSING": 110,
+    "TURN_OUTER": 145,
+    "TURN_INNER_SHARP": -125
+   },
+   "user": "67/72",
+   "cppPass": 67,
+   "jsPass": 67,
+   "lineSame": 72,
+   "n": 72,
+   "cppLap": "15.20",
+   "jsLap": "15.20",
+   "diffs": [],
+   "perCondition": [
+    {
+     "ok": true,
+     "lap": 12.89
+    },
+    {
+     "ok": true,
+     "lap": 14.1
+    },
+    {
+     "ok": true,
+     "lap": 19.14
+    },
+    {
+     "ok": true,
+     "lap": 19.5
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 14.82
+    },
+    {
+     "ok": true,
+     "lap": 20.89
+    },
+    {
+     "ok": true,
+     "lap": 19.96
+    },
+    {
+     "ok": true,
+     "lap": 12.65
+    },
+    {
+     "ok": true,
+     "lap": 12.96
+    },
+    {
+     "ok": true,
+     "lap": 18.82
+    },
+    {
+     "ok": true,
+     "lap": 19.13
+    },
+    {
+     "ok": true,
+     "lap": 13.28
+    },
+    {
+     "ok": true,
+     "lap": 13.72
+    },
+    {
+     "ok": true,
+     "lap": 19.27
+    },
+    {
+     "ok": true,
+     "lap": 19.62
+    },
+    {
+     "ok": true,
+     "lap": 12.45
+    },
+    {
+     "ok": true,
+     "lap": 12.71
+    },
+    {
+     "ok": true,
+     "lap": 18.84
+    },
+    {
+     "ok": true,
+     "lap": 19.21
+    },
+    {
+     "ok": true,
+     "lap": 12.75
+    },
+    {
+     "ok": true,
+     "lap": 13.39
+    },
+    {
+     "ok": true,
+     "lap": 18.98
+    },
+    {
+     "ok": true,
+     "lap": 19.82
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 13.16
+    },
+    {
+     "ok": true,
+     "lap": 19.16
+    },
+    {
+     "ok": true,
+     "lap": 19.47
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 14.41
+    },
+    {
+     "ok": true,
+     "lap": 19.5
+    },
+    {
+     "ok": true,
+     "lap": 19.88
+    },
+    {
+     "ok": true,
+     "lap": 12.69
+    },
+    {
+     "ok": true,
+     "lap": 12.98
+    },
+    {
+     "ok": true,
+     "lap": 18.87
+    },
+    {
+     "ok": true,
+     "lap": 19.17
+    },
+    {
+     "ok": true,
+     "lap": 12.93
+    },
+    {
+     "ok": true,
+     "lap": 13.43
+    },
+    {
+     "ok": true,
+     "lap": 19.34
+    },
+    {
+     "ok": true,
+     "lap": 19.65
+    },
+    {
+     "ok": true,
+     "lap": 12.51
+    },
+    {
+     "ok": true,
+     "lap": 12.95
+    },
+    {
+     "ok": true,
+     "lap": 18.8
+    },
+    {
+     "ok": true,
+     "lap": 19.14
+    },
+    {
+     "ok": true,
+     "lap": 12.81
+    },
+    {
+     "ok": true,
+     "lap": 13.1
+    },
+    {
+     "ok": true,
+     "lap": 19.1
+    },
+    {
+     "ok": true,
+     "lap": 19.77
+    },
+    {
+     "ok": true,
+     "lap": 12.9
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 19.22
+    },
+    {
+     "ok": true,
+     "lap": 19.51
+    },
+    {
+     "ok": true,
+     "lap": 13.38
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 19.64
+    },
+    {
+     "ok": true,
+     "lap": 21.05
+    },
+    {
+     "ok": true,
+     "lap": 12.8
+    },
+    {
+     "ok": true,
+     "lap": 13.08
+    },
+    {
+     "ok": true,
+     "lap": 18.98
+    },
+    {
+     "ok": true,
+     "lap": 19.24
+    },
+    {
+     "ok": true,
+     "lap": 13.08
+    },
+    {
+     "ok": true,
+     "lap": 13.31
+    },
+    {
+     "ok": true,
+     "lap": 19.5
+    },
+    {
+     "ok": true,
+     "lap": 19.81
+    },
+    {
+     "ok": true,
+     "lap": 12.69
+    },
+    {
+     "ok": true,
+     "lap": 12.91
+    },
+    {
+     "ok": true,
+     "lap": 18.64
+    },
+    {
+     "ok": true,
+     "lap": 19.26
+    },
+    {
+     "ok": true,
+     "lap": 13.05
+    },
+    {
+     "ok": true,
+     "lap": 13.35
+    },
+    {
+     "ok": true,
+     "lap": 19.31
+    },
+    {
+     "ok": true,
+     "lap": 19.88
+    }
+   ]
+  },
+  {
+   "key": "faster_200",
+   "label": "Faster (180/150/200/-170)",
+   "rpm": 200,
+   "vmax": 0.5,
+   "settings": {
+    "SHARP_AFTER_MS": 30,
+    "LOST_AFTER_MS": 250,
+    "SPEED_STRAIGHT": 180,
+    "SPEED_CROSSING": 150,
+    "TURN_OUTER": 200,
+    "TURN_INNER_SHARP": -170
+   },
+   "user": "64/72, lap 12.64 s",
+   "cppPass": 64,
+   "jsPass": 64,
+   "lineSame": 72,
+   "n": 72,
+   "cppLap": "12.64",
+   "jsLap": "12.64",
+   "diffs": [],
+   "perCondition": [
+    {
+     "ok": true,
+     "lap": 11.96
+    },
+    {
+     "ok": true,
+     "lap": 12.3
+    },
+    {
+     "ok": true,
+     "lap": 13.48
+    },
+    {
+     "ok": true,
+     "lap": 13.84
+    },
+    {
+     "ok": true,
+     "lap": 13.9
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 11.75
+    },
+    {
+     "ok": true,
+     "lap": 12.07
+    },
+    {
+     "ok": true,
+     "lap": 13.25
+    },
+    {
+     "ok": true,
+     "lap": 13.58
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 13.9
+    },
+    {
+     "ok": true,
+     "lap": 13.79
+    },
+    {
+     "ok": true,
+     "lap": 11.56
+    },
+    {
+     "ok": true,
+     "lap": 11.84
+    },
+    {
+     "ok": true,
+     "lap": 13.03
+    },
+    {
+     "ok": true,
+     "lap": 13.59
+    },
+    {
+     "ok": true,
+     "lap": 11.79
+    },
+    {
+     "ok": true,
+     "lap": 12.55
+    },
+    {
+     "ok": true,
+     "lap": 13.29
+    },
+    {
+     "ok": true,
+     "lap": 13.57
+    },
+    {
+     "ok": true,
+     "lap": 11.92
+    },
+    {
+     "ok": true,
+     "lap": 12.26
+    },
+    {
+     "ok": true,
+     "lap": 13.43
+    },
+    {
+     "ok": true,
+     "lap": 13.8
+    },
+    {
+     "ok": true,
+     "lap": 13.8
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 14.64
+    },
+    {
+     "ok": true,
+     "lap": 15.14
+    },
+    {
+     "ok": true,
+     "lap": 11.8
+    },
+    {
+     "ok": true,
+     "lap": 12.1
+    },
+    {
+     "ok": true,
+     "lap": 13.28
+    },
+    {
+     "ok": true,
+     "lap": 13.6
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 12.6
+    },
+    {
+     "ok": true,
+     "lap": 13.5
+    },
+    {
+     "ok": true,
+     "lap": 13.78
+    },
+    {
+     "ok": true,
+     "lap": 11.62
+    },
+    {
+     "ok": true,
+     "lap": 12.11
+    },
+    {
+     "ok": true,
+     "lap": 13.08
+    },
+    {
+     "ok": true,
+     "lap": 13.56
+    },
+    {
+     "ok": true,
+     "lap": 11.87
+    },
+    {
+     "ok": true,
+     "lap": 12.15
+    },
+    {
+     "ok": true,
+     "lap": 13.37
+    },
+    {
+     "ok": true,
+     "lap": 13.67
+    },
+    {
+     "ok": true,
+     "lap": 12
+    },
+    {
+     "ok": true,
+     "lap": 12.32
+    },
+    {
+     "ok": true,
+     "lap": 13.5
+    },
+    {
+     "ok": true,
+     "lap": 13.84
+    },
+    {
+     "ok": true,
+     "lap": 12.44
+    },
+    {
+     "ok": true,
+     "lap": 13.47
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 19.1
+    },
+    {
+     "ok": true,
+     "lap": 11.9
+    },
+    {
+     "ok": true,
+     "lap": 12.2
+    },
+    {
+     "ok": true,
+     "lap": 13.38
+    },
+    {
+     "ok": true,
+     "lap": 13.68
+    },
+    {
+     "ok": true,
+     "lap": 12.12
+    },
+    {
+     "ok": true,
+     "lap": 12.39
+    },
+    {
+     "ok": true,
+     "lap": 13.66
+    },
+    {
+     "ok": true,
+     "lap": 13.92
+    },
+    {
+     "ok": true,
+     "lap": 11.8
+    },
+    {
+     "ok": true,
+     "lap": 12.07
+    },
+    {
+     "ok": true,
+     "lap": 13.24
+    },
+    {
+     "ok": true,
+     "lap": 13.46
+    },
+    {
+     "ok": true,
+     "lap": 12.09
+    },
+    {
+     "ok": true,
+     "lap": 12.37
+    },
+    {
+     "ok": true,
+     "lap": 13.58
+    },
+    {
+     "ok": true,
+     "lap": 13.94
+    }
+   ]
+  },
+  {
+   "key": "muchfaster_200",
+   "label": "Much faster (210/170/230/-190)",
+   "rpm": 200,
+   "vmax": 0.5,
+   "settings": {
+    "SHARP_AFTER_MS": 30,
+    "LOST_AFTER_MS": 250,
+    "SPEED_STRAIGHT": 210,
+    "SPEED_CROSSING": 170,
+    "TURN_OUTER": 230,
+    "TURN_INNER_SHARP": -190
+   },
+   "user": "50/72, lap 10.48 s",
+   "cppPass": 50,
+   "jsPass": 50,
+   "lineSame": 72,
+   "n": 72,
+   "cppLap": "10.48",
+   "jsLap": "10.48",
+   "diffs": [],
+   "perCondition": [
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 10.22
+    },
+    {
+     "ok": true,
+     "lap": 10.49
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.75
+    },
+    {
+     "ok": true,
+     "lap": 10.03
+    },
+    {
+     "ok": true,
+     "lap": 10.3
+    },
+    {
+     "ok": true,
+     "lap": 10.58
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.56
+    },
+    {
+     "ok": true,
+     "lap": 9.83
+    },
+    {
+     "ok": true,
+     "lap": 10.11
+    },
+    {
+     "ok": true,
+     "lap": 10.38
+    },
+    {
+     "ok": true,
+     "lap": 10.15
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 10.68
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.88
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 10.46
+    },
+    {
+     "ok": true,
+     "lap": 10.74
+    },
+    {
+     "ok": true,
+     "lap": 11.05
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 11.44
+    },
+    {
+     "ok": true,
+     "lap": 12.59
+    },
+    {
+     "ok": true,
+     "lap": 9.76
+    },
+    {
+     "ok": true,
+     "lap": 9.99
+    },
+    {
+     "ok": true,
+     "lap": 10.29
+    },
+    {
+     "ok": true,
+     "lap": 10.54
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.62
+    },
+    {
+     "ok": true,
+     "lap": 9.88
+    },
+    {
+     "ok": true,
+     "lap": 10.15
+    },
+    {
+     "ok": true,
+     "lap": 10.41
+    },
+    {
+     "ok": true,
+     "lap": 10.04
+    },
+    {
+     "ok": true,
+     "lap": 10.3
+    },
+    {
+     "ok": true,
+     "lap": 10.57
+    },
+    {
+     "ok": true,
+     "lap": 10.61
+    },
+    {
+     "ok": true,
+     "lap": 9.94
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 10.49
+    },
+    {
+     "ok": true,
+     "lap": 10.72
+    },
+    {
+     "ok": true,
+     "lap": 10.45
+    },
+    {
+     "ok": true,
+     "lap": 11.66
+    },
+    {
+     "ok": true,
+     "lap": 11.8
+    },
+    {
+     "ok": true,
+     "lap": 12.19
+    },
+    {
+     "ok": true,
+     "lap": 9.82
+    },
+    {
+     "ok": true,
+     "lap": 10.06
+    },
+    {
+     "ok": true,
+     "lap": 10.35
+    },
+    {
+     "ok": true,
+     "lap": 10.6
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 11.22
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": false,
+     "lap": null
+    },
+    {
+     "ok": true,
+     "lap": 9.73
+    },
+    {
+     "ok": true,
+     "lap": 9.98
+    },
+    {
+     "ok": true,
+     "lap": 10.26
+    },
+    {
+     "ok": true,
+     "lap": 10.51
+    },
+    {
+     "ok": true,
+     "lap": 9.95
+    },
+    {
+     "ok": true,
+     "lap": 10.2
+    },
+    {
+     "ok": true,
+     "lap": 10.5
+    },
+    {
+     "ok": true,
+     "lap": 10.73
+    }
+   ]
+  }
+ ],
+ "run13": [
+  {
+   "case": "line 2.0 cm, sensors 3.5 cm, 0.50 m/s",
+   "cpp": "FINISHED lap=16.67s mean_dev=5.4mm max_dev=8.0mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=16.67s mean_dev=5.4mm max_dev=8.0mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 3603
+  },
+  {
+   "case": "line 2.0 cm, sensors 3.5 cm, 0.75 m/s",
+   "cpp": "FINISHED lap=11.42s mean_dev=5.1mm max_dev=14.9mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=11.42s mean_dev=5.1mm max_dev=14.9mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 2552
+  },
+  {
+   "case": "line 2.0 cm, sensors 4.0 cm, 0.50 m/s",
+   "cpp": "FINISHED lap=16.63s mean_dev=7.3mm max_dev=10.4mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=16.63s mean_dev=7.3mm max_dev=10.4mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 3594
+  },
+  {
+   "case": "line 2.0 cm, sensors 4.0 cm, 0.75 m/s",
+   "cpp": "FINISHED lap=11.30s mean_dev=7.0mm max_dev=18.4mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=11.30s mean_dev=7.0mm max_dev=18.4mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 2529
+  },
+  {
+   "case": "line 2.5 cm, sensors 3.5 cm, 0.50 m/s",
+   "cpp": "FINISHED lap=16.85s mean_dev=3.5mm max_dev=6.8mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=16.85s mean_dev=3.5mm max_dev=6.8mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 3638
+  },
+  {
+   "case": "line 2.5 cm, sensors 3.5 cm, 0.75 m/s",
+   "cpp": "FINISHED lap=11.19s mean_dev=3.5mm max_dev=10.7mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=11.19s mean_dev=3.5mm max_dev=10.7mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 2507
+  },
+  {
+   "case": "line 2.5 cm, sensors 4.0 cm, 0.50 m/s",
+   "cpp": "FINISHED lap=16.74s mean_dev=5.3mm max_dev=7.8mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=16.74s mean_dev=5.3mm max_dev=7.8mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 3617
+  },
+  {
+   "case": "line 2.5 cm, sensors 4.0 cm, 0.75 m/s",
+   "cpp": "FINISHED lap=11.15s mean_dev=5.2mm max_dev=11.2mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=11.15s mean_dev=5.2mm max_dev=11.2mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 2498
+  },
+  {
+   "case": "line 3.0 cm, sensors 3.5 cm, 0.50 m/s",
+   "cpp": "FINISHED lap=17.46s mean_dev=1.9mm max_dev=12.4mm junctions_counted=23 progress=3.52/3.53m",
+   "js": "FINISHED lap=17.46s mean_dev=1.9mm max_dev=12.4mm junctions_counted=23 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 3760
+  },
+  {
+   "case": "line 3.0 cm, sensors 3.5 cm, 0.75 m/s",
+   "cpp": "FINISHED lap=11.58s mean_dev=1.8mm max_dev=9.1mm junctions_counted=16 progress=3.52/3.53m",
+   "js": "FINISHED lap=11.58s mean_dev=1.8mm max_dev=9.1mm junctions_counted=16 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 2585
+  },
+  {
+   "case": "line 3.0 cm, sensors 4.0 cm, 0.50 m/s",
+   "cpp": "FINISHED lap=16.97s mean_dev=3.5mm max_dev=10.8mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=16.97s mean_dev=3.5mm max_dev=10.8mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 3662
+  },
+  {
+   "case": "line 3.0 cm, sensors 4.0 cm, 0.75 m/s",
+   "cpp": "FINISHED lap=11.22s mean_dev=3.3mm max_dev=8.6mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=11.22s mean_dev=3.3mm max_dev=8.6mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 2513
+  },
+  {
+   "case": "REFERENCE line 2.5 cm, sensors 3.8 cm, 0.50 m/s",
+   "cpp": "FINISHED lap=16.75s mean_dev=4.6mm max_dev=7.0mm junctions_counted=1 progress=3.52/3.53m",
+   "js": "FINISHED lap=16.75s mean_dev=4.6mm max_dev=7.0mm junctions_counted=1 progress=3.52/3.53m",
+   "same": true,
+   "traceSame": true,
+   "traceLines": 3618
+  }
+ ]
+}

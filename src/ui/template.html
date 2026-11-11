@@ -1,0 +1,268 @@
+<!--HEAD-->
+<title>LF3 Run Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Watch the LF3 line follower program drive the 3.53 m test track, computed by an exact JavaScript port of the C++ reference simulator.">
+<style>
+/*STYLE*/
+</style>
+<!--/HEAD-->
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <h1><span class="tag">LF3</span>Line Follower Run Simulator</h1>
+      <span class="sub">TechRadiance 2026 &middot; Arduino UNO &middot; 2 digital IR sensors &middot; L298N &middot; 2 BO motors &middot; 3.53 m test track</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="theme-toggle" role="group" aria-label="Colour theme">
+      <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-set="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+    </div>
+  </header>
+
+  <!-- ============================================================ SETTINGS RAIL -->
+  <aside class="rail panel" id="rail" aria-label="Run settings">
+    <section>
+      <h2>Motor RPM <span class="hint">rules: 300 max</span></h2>
+      <div class="rpm-head">
+        <div class="rpm-big"><span id="rpmVal">200</span><small>RPM</small></div>
+        <div class="vmax">top wheel speed<b id="vmaxVal">0.50 m/s</b></div>
+      </div>
+      <input type="range" id="rpm" min="60" max="300" step="10" value="200" aria-label="Motor RPM">
+      <div class="chips" id="rpmChips">
+        <button type="button" class="chip" data-rpm="100">100</button>
+        <button type="button" class="chip" data-rpm="150">150</button>
+        <button type="button" class="chip" data-rpm="200">200</button>
+        <button type="button" class="chip" data-rpm="250">250</button>
+        <button type="button" class="chip" data-rpm="300">300</button>
+      </div>
+      <div class="foot">v<sub>max</sub> = (RPM / 400) &times; (wheel &oslash; / 65 mm): the motors reach about 73 % of their no-load RPM on the loaded robot.</div>
+    </section>
+
+    <section>
+      <h2>Program settings <span class="hint">LF3 constants</span></h2>
+      <select id="preset" aria-label="Preset">
+        <option value="default">Default (150 / 130 / 170 / 0 / -150)</option>
+        <option value="slower">Slower, for 300 RPM motors (125 / 110 / 145 / 0 / -125)</option>
+        <option value="faster">Faster (180 / 150 / 200 / 0 / -170)</option>
+        <option value="muchFaster">Much faster (210 / 170 / 230 / 0 / -190)</option>
+        <option value="custom">Custom</option>
+      </select>
+      <div class="field-grid" id="settingsGrid">
+        <label for="s-SPEED_STRAIGHT">SPEED_STRAIGHT<small>both wheels, line between sensors</small></label><input type="number" id="s-SPEED_STRAIGHT" min="-255" max="255" step="1">
+        <label for="s-SPEED_CROSSING">SPEED_CROSSING<small>both wheels, on a crossing</small></label><input type="number" id="s-SPEED_CROSSING" min="-255" max="255" step="1">
+        <label for="s-TURN_OUTER">TURN_OUTER<small>outer wheel in every turn</small></label><input type="number" id="s-TURN_OUTER" min="-255" max="255" step="1">
+        <label for="s-TURN_INNER_SOFT">TURN_INNER_SOFT<small>inner wheel, gentle turn</small></label><input type="number" id="s-TURN_INNER_SOFT" min="-255" max="255" step="1">
+        <label for="s-TURN_INNER_SHARP">TURN_INNER_SHARP<small>inner wheel, sharp turn</small></label><input type="number" id="s-TURN_INNER_SHARP" min="-255" max="255" step="1">
+        <label for="s-SHARP_AFTER_MS">SHARP_AFTER_MS<small>gentle turn becomes sharp after</small></label><input type="number" id="s-SHARP_AFTER_MS" min="0" max="5000" step="1">
+        <label for="s-LOST_AFTER_MS">LOST_AFTER_MS<small>line memory: search after</small></label><input type="number" id="s-LOST_AFTER_MS" min="0" max="99999" step="1">
+        <label for="s-SEARCH_GIVE_UP_MS">SEARCH_GIVE_UP_MS<small>stop if not found within</small></label><input type="number" id="s-SEARCH_GIVE_UP_MS" min="0" max="60000" step="1">
+      </div>
+      <label class="switch"><span>Line memory<span class="small" style="display:block">off sets LOST_AFTER_MS to 99999</span></span><input type="checkbox" id="memory" checked></label>
+    </section>
+
+    <section>
+      <h2>Robot build <button type="button" class="linkbtn" id="resetBuild">reset</button></h2>
+      <div class="slider-row"><label for="b-spacing">Sensor spacing</label><output id="o-spacing">3.8 cm</output><input type="range" id="b-spacing" min="3.0" max="5.0" step="0.1" value="3.8"></div>
+      <div class="slider-row"><label for="b-ahead">Sensors ahead of the axle</label><output id="o-ahead">7.0 cm</output><input type="range" id="b-ahead" min="5" max="9" step="0.5" value="7"></div>
+      <div class="slider-row"><label for="b-track">Wheel spacing</label><output id="o-track">13.0 cm</output><input type="range" id="b-track" min="12" max="15" step="0.5" value="13"></div>
+      <div class="slider-row"><label for="b-wheel">Wheel diameter</label><output id="o-wheel">65 mm</output><input type="range" id="b-wheel" min="40" max="90" step="1" value="65"></div>
+      <div class="slider-row"><label for="b-tau">Motor response time TAU</label><output id="o-tau">0.08 s</output><input type="range" id="b-tau" min="0.05" max="0.10" step="0.01" value="0.08"><span class="note">0.05 = quick &middot; 0.10 = slow</span></div>
+      <div class="slider-row"><label for="b-dead">Motor dead zone DEAD</label><output id="o-dead">60 PWM</output><input type="range" id="b-dead" min="40" max="80" step="5" value="60"><span class="note">PWM below this does not turn the wheel</span></div>
+    </section>
+
+    <section>
+      <h2>Track</h2>
+      <div class="slider-row"><label>Line (tape) width</label><span></span></div>
+      <div class="seg" id="lineW" role="group" aria-label="Line width">
+        <button type="button" data-w="2.0" aria-pressed="false">2.0 cm</button>
+        <button type="button" data-w="2.5" aria-pressed="true">2.5 cm</button>
+        <button type="button" data-w="3.0" aria-pressed="false">3.0 cm</button>
+      </div>
+      <div class="foot">3.53 m test track: wide left curve, crossing line, tight right curve, 5 cm gap, sharp 90&deg; left corner, R 12 cm curve, S-bend of R 10 cm curves.</div>
+    </section>
+  </aside>
+
+  <!-- ============================================================ STAGE -->
+  <main class="stage panel" aria-label="Track">
+    <div class="stage-head">
+      <div class="now-showing" id="nowShowing">&nbsp;</div>
+      <div class="seg" role="group" aria-label="Camera">
+        <button type="button" id="camWhole" aria-pressed="true">Whole track</button>
+        <button type="button" id="camFollow" aria-pressed="false">Follow robot</button>
+      </div>
+      <div class="seg" role="group" aria-label="Zoom">
+        <button type="button" id="zoomOut" aria-label="Zoom out">&minus;</button>
+        <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+      </div>
+    </div>
+    <div class="board" id="board">
+      <canvas id="cv" aria-label="Top-down view of the track and the robot, to scale"></canvas>
+      <div class="board-hint" id="boardHint">scroll to zoom &middot; drag to pan &middot; double-click: whole track</div>
+      <details class="legend" id="legend" open>
+        <summary class="t">Legend: trail of the sensor midpoint</summary>
+        <div class="legend-items">
+        <span><i style="background:var(--tr-straight)"></i>straight</span>
+        <span><i style="background:var(--tr-gentle)"></i>gentle turn</span>
+        <span><i style="background:var(--tr-sharp)"></i>sharp turn</span>
+        <span><i style="background:var(--tr-cross)"></i>crossing</span>
+        <span><i style="background:var(--tr-search)"></i>line-memory search</span>
+        <span><em class="ev" style="color:var(--tr-sharp)">&#9650;</em>sharp turn starts</span>
+        <span><em class="ev" style="color:var(--tr-search)">?</em>line lost &rarr; searching</span>
+        <span><em class="ev" style="color:var(--tr-cross)">#</em>crossing counted</span>
+        </div>
+      </details>
+      <div class="busy" id="busy" hidden>Simulating&hellip;</div>
+    </div>
+    <div class="transport">
+      <button type="button" class="btn primary" id="btnStart" title="Simulate a run with the settings on the left and play it">&#9654; Start run</button>
+      <button type="button" class="btn" id="btnPause" title="Space">Pause</button>
+      <button type="button" class="btn" id="btnRestart">&#8634; Restart</button>
+      <div class="seg" id="speeds" role="group" aria-label="Playback speed">
+        <button type="button" data-speed="0.1">0.1&times;</button>
+        <button type="button" data-speed="0.25">0.25&times;</button>
+        <button type="button" data-speed="0.5">0.5&times;</button>
+        <button type="button" data-speed="1" aria-pressed="true" title="real time">1&times;</button>
+        <button type="button" data-speed="2">2&times;</button>
+        <button type="button" data-speed="4">4&times;</button>
+      </div>
+      <div class="scrub"><div class="ticks" id="ticks"></div><input type="range" id="scrub" min="0" max="1000" step="1" value="0" aria-label="Timeline"></div>
+      <div class="clock" id="tClock">0.000 / 0.000 s</div>
+    </div>
+  </main>
+
+  <!-- ============================================================ INSTRUMENTS -->
+  <aside class="inst panel" aria-label="Live readouts">
+    <div class="clocks">
+      <div><span>Run clock</span><b id="rClock">0.000</b></div>
+      <div><span>Lap time</span><b id="rLap">&ndash;</b></div>
+    </div>
+    <div>
+      <h3>What the program is doing</h3>
+      <div class="state" style="margin-top:6px"><span class="pill" id="rState">WAITING FOR START</span></div>
+    </div>
+    <div class="sensors">
+      <div class="sensor" id="sL"><span class="dot"></span><span><span class="lab">LEFT sensor (A1)</span><b>white</b></span></div>
+      <div class="sensor" id="sR"><span class="dot"></span><span><span class="lab">RIGHT sensor (A3)</span><b>white</b></span></div>
+    </div>
+    <div class="rule" id="rRule">&nbsp;</div>
+    <div>
+      <h3>Motor PWM (L298N)</h3>
+      <div class="motors" style="margin-top:6px">
+        <div class="motor"><span>Left</span><div class="bar"><div class="fill" id="pwmLf"></div></div><span class="v" id="pwmL">0</span></div>
+        <div class="motor"><span>Right</span><div class="bar"><div class="fill" id="pwmRf"></div></div><span class="v" id="pwmR">0</span></div>
+      </div>
+    </div>
+    <dl class="kv">
+      <dt>Wheel speed left / right</dt><dd id="rWheels">0.00 / 0.00 m/s</dd>
+      <dt>Sensor midpoint off the line</dt><dd id="rDev">0.0 mm</dd>
+    </dl>
+    <div><div class="devgauge"><i id="devMark" style="left:50%"></i></div><div class="devscale"><span>20 mm right</span><span>centre</span><span>20 mm left</span></div></div>
+    <dl class="kv">
+      <dt>Progress</dt><dd id="rProg">0 %</dd>
+    </dl>
+    <div class="gauge"><i id="progBar" style="width:0"></i></div>
+    <dl class="kv">
+      <dt>Crossings counted</dt><dd id="rJunc">0</dd>
+      <dt>Line memory</dt><dd id="rMem">&ndash;</dd>
+    </dl>
+    <div id="resultCard" class="result pending">The result appears when the playback reaches the end of the run.</div>
+    <div id="raceBox" hidden>
+      <h3>Race</h3>
+      <div class="race-board" id="raceBoard" style="margin-top:6px"></div>
+    </div>
+    <div>
+      <h3>Serial Monitor (115200 baud)</h3>
+      <div class="serial" id="serial" style="margin-top:6px"></div>
+    </div>
+  </aside>
+
+  <!-- ============================================================ BENCH -->
+  <section class="bench panel" aria-label="Compare and learn">
+    <div class="splitter" id="splitter" title="Drag to make the track bigger or smaller" aria-hidden="true"></div>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-hist" aria-selected="true" aria-controls="p-hist">Run history</button>
+      <button type="button" role="tab" id="tab-72" aria-selected="false" aria-controls="p-72">Test all 72 combinations</button>
+      <button type="button" role="tab" id="tab-learn" aria-selected="false" aria-controls="p-learn">How the program works</button>
+      <button type="button" role="tab" id="tab-code" aria-selected="false" aria-controls="p-code">Show code</button>
+      <span class="spacer"></span>
+      <button type="button" class="collapse" id="benchToggle" aria-expanded="true" title="Hide / show this panel">&#9662; hide</button>
+    </div>
+    <div class="bench-body">
+      <div role="tabpanel" id="p-hist" aria-labelledby="tab-hist">
+        <div class="toolbar">
+          <button type="button" class="btn small" id="btnRace" disabled>Race ticked runs</button>
+          <button type="button" class="btn small" id="btnUntick">Untick all</button>
+          <button type="button" class="btn small" id="btnClear">Clear history</button>
+          <span class="muted">Click a row to replay it. Tick rows to overlay their trails; tick 2&ndash;4 and press Race to replay them together.</span>
+        </div>
+        <div class="table-wrap">
+          <table class="hist">
+            <thead><tr><th>Tick</th><th>#</th><th>RPM</th><th>Program</th><th>Build</th><th>Track</th><th>Result</th><th>Lap</th><th>Max off-line</th><th>Mean</th></tr></thead>
+            <tbody id="histBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div role="tabpanel" id="p-72" aria-labelledby="tab-72" hidden>
+        <div class="toolbar">
+          <button type="button" class="btn small primary" id="btn72">Test all 72 combinations</button>
+          <div class="progress" id="prog72wrap" hidden><i id="prog72"></i></div>
+          <span class="muted" id="desc72"></span>
+        </div>
+        <div id="res72"></div>
+      </div>
+
+      <div role="tabpanel" id="p-learn" aria-labelledby="tab-learn" hidden>
+        <div class="learn">
+          <div>
+            <h4>The four sensor rules</h4>
+            <p>The two IR sensors sit just <b>outside</b> the two edges of the black tape. When the robot is centred, both see white. Each sensor only says &ldquo;black&rdquo; or &ldquo;white&rdquo;, so there are only four possible readings:</p>
+            <table class="rules">
+              <tr><th>Left</th><th>Right</th><th>Meaning</th><th>What LF3 does</th></tr>
+              <tr><td><span class="kB white">white</span></td><td><span class="kB white">white</span></td><td>line between the sensors</td><td>straight (SPEED_STRAIGHT)</td></tr>
+              <tr><td><span class="kB black">BLACK</span></td><td><span class="kB white">white</span></td><td>robot drifted right</td><td>turn left</td></tr>
+              <tr><td><span class="kB white">white</span></td><td><span class="kB black">BLACK</span></td><td>robot drifted left</td><td>turn right</td></tr>
+              <tr><td><span class="kB black">BLACK</span></td><td><span class="kB black">BLACK</span></td><td>crossing line</td><td>straight on, a bit slower</td></tr>
+            </table>
+          </div>
+          <div>
+            <h4>Gentle first, then sharp</h4>
+            <p>A turn starts gentle: the outer wheel drives at TURN_OUTER and the inner wheel stops (TURN_INNER_SOFT = 0), so the robot swings round its inner wheel.</p>
+            <p>If the same sensor is still on black after SHARP_AFTER_MS (30 ms), the bend must be sharp. Now the inner wheel runs backwards (TURN_INNER_SHARP) and the robot spins almost on the spot. Watch the trail turn from amber to red-orange in tight curves.</p>
+          </div>
+          <div>
+            <h4>Line memory</h4>
+            <p>At the 90&deg; corner the robot can overshoot so far that both sensors end up on white, which normally means &ldquo;go straight&rdquo;. So after a sharp turn LF3 remembers which way it was turning. If it then sees no line for LOST_AFTER_MS (250 ms), it spins back that way until one sensor finds the tape again (magenta trail, &ldquo;?&rdquo; marker). After SEARCH_GIVE_UP_MS (2 s) without the line it stops.</p>
+            <p>Both sensors black <i>during</i> a sharp turn is treated as being on top of the corner, not as a crossing.</p>
+          </div>
+          <div>
+            <h4>What the simulator models</h4>
+            <p>Each wheel follows its target speed with a delay (TAU), PWM below DEAD does not move it, and the robot steers by the speed difference of its two wheels. The program runs every 0.5 ms, exactly as in the C++ reference simulator. The 5 cm gap needs no special rule: both sensors see white, so the robot drives straight across it.</p>
+            <p>What it does not model: wheel slip, battery sag, sensor noise or sensor height. Treat the numbers as a comparison between settings, then confirm on the real track.</p>
+          </div>
+        </div>
+      </div>
+
+      <div role="tabpanel" id="p-code" aria-labelledby="tab-code" hidden>
+        <div class="codeview">
+          <pre class="code" id="codePre"></pre>
+          <div class="codeside">
+            <div><h3 class="small" style="text-transform:uppercase;letter-spacing:.08em">Running now</h3><div class="rule" id="codeRule"></div></div>
+            <div class="small">The highlighted lines are the branch of <span class="mono">followLine()</span> that ran most recently at this moment of the playback. Scrub the timeline or play at 0.1&times; to step through it. This is the real LF3 source; the page runs a line-by-line JavaScript translation of it.</div>
+            <dl class="kv" id="codeVars"></dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" hidden></div>
+<script>window.LF_DATA = /*DATA*/;</script>
+<script id="lf-core">
+/*CORE*/
+</script>
+<script>
+/*APP*/
+</script>

@@ -1,0 +1,4 @@
+reference/sim/out/
+test/out/
+node_modules/
+.DS_Store

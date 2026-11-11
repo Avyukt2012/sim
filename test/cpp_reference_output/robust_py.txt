@@ -1,0 +1,7 @@
+144 conditions per candidate
+A  SHARP=60 LOST=150       pass 123/144 (85%)  by top speed {0.5: 66, 0.75: 57}  by sensor distance {0.05: 30, 0.07: 45, 0.09: 48}
+B  SHARP=30 LOST=250       pass 128/144 (89%)  by top speed {0.5: 72, 0.75: 56}  by sensor distance {0.05: 39, 0.07: 42, 0.09: 47}
+C  SHARP=30 LOST=200       pass 129/144 (90%)  by top speed {0.5: 71, 0.75: 58}  by sensor distance {0.05: 38, 0.07: 44, 0.09: 47}
+D  SHARP=30 LOST=300       pass 117/144 (81%)  by top speed {0.5: 69, 0.75: 48}  by sensor distance {0.05: 33, 0.07: 39, 0.09: 45}
+E  SHARP=50 LOST=250       pass 117/144 (81%)  by top speed {0.5: 68, 0.75: 49}  by sensor distance {0.05: 34, 0.07: 38, 0.09: 45}
+F  memory off SHARP=30     pass 113/144 (78%)  by top speed {0.5: 64, 0.75: 49}  by sensor distance {0.05: 31, 0.07: 37, 0.09: 45}
